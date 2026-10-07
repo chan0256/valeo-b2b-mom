@@ -1,0 +1,20 @@
+{
+  // Must match the Worker's name in the Cloudflare dashboard
+  "name": "WORKER_NAME",
+  "main": "src/worker.js",
+  "compatibility_date": "2025-09-01",
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "b2b-mom",
+      // From Cloudflare dashboard: Storage & databases > D1 > b2b-mom > Database ID
+      "database_id": "DATABASE_ID"
+    }
+  ],
+  "observability": { "enabled": true }
+}
