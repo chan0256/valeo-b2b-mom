@@ -1,6 +1,6 @@
 {
   // Must match the Worker's name in the Cloudflare dashboard
-  "name": "WORKER_NAME",
+  "name": "valeo-b2b-mom",
   "main": "src/worker.js",
   "compatibility_date": "2025-09-01",
   "assets": {
@@ -13,7 +13,7 @@
       "binding": "DB",
       "database_name": "b2b-mom",
       // From Cloudflare dashboard: Storage & databases > D1 > b2b-mom > Database ID
-      "database_id": "DATABASE_ID"
+      "database_id": "1c5effcc-812b-424e-a8d1-d52d55310c9c"
     }
   ],
   "observability": { "enabled": true }
