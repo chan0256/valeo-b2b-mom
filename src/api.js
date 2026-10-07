@@ -1,4 +1,4 @@
-// B2B Weekly MoM portal API (Cloudflare Pages Function, D1 binding "DB").
+// B2B Weekly MoM portal API (Cloudflare Worker, D1 binding "DB").
 // Every route lives under /api. Auth is an email + password login that sets
 // an HttpOnly session cookie; sessions are stored hashed in D1.
 
@@ -70,19 +70,50 @@ const publicItem = (i, assignees) => ({
   update: i.progress_note, doneAt: i.done_at, createdAt: i.created_at, updatedAt: i.updated_at,
 });
 
+// ---------- schema upgrade ----------
+// Adds meeting types ("series") to databases created before they existed.
+// Runs once per Worker instance, so no console step is needed after an update.
+let migrated = null;
+async function migrate(env) {
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS series (
+    id TEXT PRIMARY KEY, title TEXT NOT NULL, weekday INTEGER NOT NULL DEFAULT 1, time TEXT NOT NULL DEFAULT '10:00',
+    duration INTEGER NOT NULL DEFAULT 60, location TEXT NOT NULL DEFAULT '', sort INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL)`).run();
+  try { await env.DB.prepare("ALTER TABLE meetings ADD COLUMN series_id TEXT").run(); }
+  catch (e) { if (!/duplicate column/i.test(String(e && e.message))) throw e; }
+  if (!(await env.DB.prepare("SELECT 1 FROM series LIMIT 1").first())) {
+    const s = (await env.DB.prepare("SELECT weekday, time, duration, title, location FROM settings WHERE id = 1").first())
+      || { weekday: 1, time: "10:00", duration: 60, title: "UAE B2B Weekly Meeting", location: "" };
+    const sid = newId("s");
+    await env.DB.batch([
+      env.DB.prepare("INSERT INTO series (id, title, weekday, time, duration, location, sort, created_at) VALUES (?, ?, ?, ?, ?, ?, 0, ?)")
+        .bind(sid, s.title, s.weekday, s.time, s.duration, s.location, Date.now()),
+      env.DB.prepare("UPDATE meetings SET series_id = ? WHERE series_id IS NULL").bind(sid),
+    ]);
+  }
+}
+const ensureMigrated = env => (migrated ||= migrate(env).catch(e => { migrated = null; throw e; }));
+
+// Validates a meeting type from a request body
+function seriesFields(body) {
+  const weekday = Number(body.weekday), duration = Number(body.duration), title = str(body.title, 200);
+  if (!title) fail(400, "Give the meeting a name.");
+  if (!(weekday >= 0 && weekday <= 6) || !TIME_RE.test(body.time || "") || !(duration >= 15 && duration <= 600)) fail(400, "Check the day, time and length.");
+  return { title, weekday, time: body.time, duration: Math.round(duration), location: str(body.location, 500) };
+}
+
 // ---------- route handlers ----------
 async function getState(env) {
-  const [settings, users, meetings, items, links] = await env.DB.batch([
-    env.DB.prepare("SELECT weekday, time, duration, title, location FROM settings WHERE id = 1"),
+  const [series, users, meetings, items, links] = await env.DB.batch([
+    env.DB.prepare("SELECT id, title, weekday, time, duration, location FROM series ORDER BY sort, created_at"),
     env.DB.prepare("SELECT id, name, email, title, role, active FROM users ORDER BY name COLLATE NOCASE"),
-    env.DB.prepare("SELECT id, date, title, attendees, notes, created_at AS createdAt FROM meetings ORDER BY date DESC"),
+    env.DB.prepare("SELECT id, series_id AS seriesId, date, title, attendees, notes, created_at AS createdAt FROM meetings ORDER BY date DESC"),
     env.DB.prepare("SELECT * FROM items ORDER BY created_at"),
     env.DB.prepare("SELECT item_id, user_id FROM item_assignees"),
   ]);
   const byItem = {};
   for (const l of links.results) (byItem[l.item_id] ||= []).push(l.user_id);
   return {
-    settings: settings.results[0],
+    series: series.results,
     users: users.results.map(publicUser),
     meetings: meetings.results,
     items: items.results.map(i => publicItem(i, byItem[i.id])),
@@ -153,13 +184,33 @@ async function route(req, env, path, method) {
     return json({ ok: true });
   }
 
-  if (path === "settings" && method === "PUT") {
+  // --- meeting types (each a weekly slot with its own name, day and time)
+  if (res === "series") {
     admin();
-    const weekday = Number(body.weekday), duration = Number(body.duration);
-    if (!(weekday >= 0 && weekday <= 6) || !TIME_RE.test(body.time || "") || !(duration >= 15 && duration <= 600)) fail(400, "Check the day, time and length.");
-    await env.DB.prepare("UPDATE settings SET weekday = ?, time = ?, duration = ?, title = ?, location = ? WHERE id = 1")
-      .bind(weekday, body.time, Math.round(duration), str(body.title, 200) || "UAE B2B Weekly Meeting", str(body.location, 500)).run();
-    return json({ ok: true });
+    if (method === "POST" && !id) {
+      const f = seriesFields(body), sid = newId("s");
+      const max = await env.DB.prepare("SELECT COALESCE(MAX(sort), -1) AS m FROM series").first();
+      await env.DB.prepare("INSERT INTO series (id, title, weekday, time, duration, location, sort, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+        .bind(sid, f.title, f.weekday, f.time, f.duration, f.location, max.m + 1, Date.now()).run();
+      return json({ ok: true, id: sid });
+    }
+    if (method === "PUT" && id) {
+      const f = seriesFields(body);
+      const r = await env.DB.prepare("UPDATE series SET title = ?, weekday = ?, time = ?, duration = ?, location = ? WHERE id = ?")
+        .bind(f.title, f.weekday, f.time, f.duration, f.location, id).run();
+      if (!r.meta.changes) fail(404, "Meeting type not found.");
+      return json({ ok: true });
+    }
+    if (method === "DELETE" && id) {
+      const n = await env.DB.prepare("SELECT COUNT(*) AS n FROM series").first();
+      if (n.n <= 1) fail(400, "Keep at least one meeting type.");
+      // Recorded minutes stay; they just lose their link to the removed type
+      await env.DB.batch([
+        env.DB.prepare("UPDATE meetings SET series_id = NULL WHERE series_id = ?").bind(id),
+        env.DB.prepare("DELETE FROM series WHERE id = ?").bind(id),
+      ]);
+      return json({ ok: true });
+    }
   }
 
   // --- participants (admin manages accounts)
@@ -210,18 +261,23 @@ async function route(req, env, path, method) {
     const fields = () => {
       const date = str(body.date, 10), title = str(body.title, 200);
       if (!DATE_RE.test(date) || !title) fail(400, "A meeting needs a date and a title.");
-      return { date, title, attendees: str(body.attendees, 2000), notes: str(body.notes, 50000) };
+      return { date, title, seriesId: str(body.seriesId, 60) || null, attendees: str(body.attendees, 2000), notes: str(body.notes, 50000) };
+    };
+    const checkSeries = async f => {
+      if (f.seriesId && !(await env.DB.prepare("SELECT 1 FROM series WHERE id = ?").bind(f.seriesId).first())) fail(400, "That meeting type no longer exists.");
     };
     if (method === "POST" && !id) {
       const f = fields(), mid = newId("m"), now = Date.now();
-      await env.DB.prepare("INSERT INTO meetings (id, date, title, attendees, notes, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
-        .bind(mid, f.date, f.title, f.attendees, f.notes, me.id, now, now).run();
+      await checkSeries(f);
+      await env.DB.prepare("INSERT INTO meetings (id, series_id, date, title, attendees, notes, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+        .bind(mid, f.seriesId, f.date, f.title, f.attendees, f.notes, me.id, now, now).run();
       return json({ ok: true, id: mid });
     }
     if (method === "PUT" && id) {
       const f = fields();
-      const r = await env.DB.prepare("UPDATE meetings SET date = ?, title = ?, attendees = ?, notes = ?, updated_at = ? WHERE id = ?")
-        .bind(f.date, f.title, f.attendees, f.notes, Date.now(), id).run();
+      await checkSeries(f);
+      const r = await env.DB.prepare("UPDATE meetings SET series_id = ?, date = ?, title = ?, attendees = ?, notes = ?, updated_at = ? WHERE id = ?")
+        .bind(f.seriesId, f.date, f.title, f.attendees, f.notes, Date.now(), id).run();
       if (!r.meta.changes) fail(404, "Meeting not found.");
       return json({ ok: true });
     }
@@ -293,6 +349,7 @@ export async function onRequest({ request, env, params }) {
     if (origin && origin !== new URL(request.url).origin) return json({ error: "Cross-site request blocked." }, 403);
   }
   try {
+    await ensureMigrated(env);
     return await route(request, env, path, method);
   } catch (e) {
     if (e instanceof HttpError) return json({ error: e.message }, e.status);

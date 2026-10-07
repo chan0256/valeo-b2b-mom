@@ -213,7 +213,7 @@ details.tagpick .menu .none{padding:8px;color:var(--muted);font-size:13px}
   <form id="setupForm" hidden>
     <span class="eyebrow">First-time setup</span>
     <h1>Create the admin account</h1>
-    <p class="hint">This account manages members and meeting settings. Only the first person to open the portal sees this step.</p>
+    <p class="hint">This account manages members and meeting types. Only the first person to open the portal sees this step.</p>
     <label>Your name<input id="setupName" autocomplete="name" required></label>
     <label>Email<input type="email" id="setupEmail" autocomplete="username" required></label>
     <label>Password (8+ characters)<input type="password" id="setupPassword" minlength="8" autocomplete="new-password" required></label>
@@ -244,6 +244,7 @@ details.tagpick .menu .none{padding:8px;color:var(--muted);font-size:13px}
       <span class="eyebrow">Next meeting</span>
       <strong id="nextLabel">Loading…</strong>
       <span class="muted" id="nextSub"></span>
+      <span class="muted" id="nextOthers" style="font-size:13px" hidden></span>
       <div class="stats" id="stats"></div>
     </div>
     <div class="acts">
@@ -286,7 +287,7 @@ details.tagpick .menu .none{padding:8px;color:var(--muted);font-size:13px}
     <div class="agenda list" id="calAgenda"></div>
   </div>
 
-  <div id="panel-meetings" hidden><div id="meetingList"></div></div>
+  <div id="panel-meetings" hidden><div class="toolbar" id="meetingFilterBar"><div class="filters" id="meetingFilters"></div></div><div id="meetingList"></div></div>
 
   <div id="panel-members" hidden>
     <div class="toolbar">
@@ -297,28 +298,18 @@ details.tagpick .menu .none{padding:8px;color:var(--muted);font-size:13px}
   </div>
 
   <div id="panel-settings" hidden>
-    <form id="settingsForm" class="list" style="padding:20px;display:grid;gap:16px">
-      <h2>Meeting schedule</h2>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px">
-        <label>Day of week
-          <select id="setWeekday">
-            <option value="0">Sunday</option><option value="1">Monday</option><option value="2">Tuesday</option><option value="3">Wednesday</option><option value="4">Thursday</option><option value="5">Friday</option><option value="6">Saturday</option>
-          </select>
-        </label>
-        <label>Start time (Dubai)<input id="setTime" type="time" required></label>
-        <label>Length (minutes)<input id="setDuration" type="number" min="15" step="15" required></label>
-      </div>
-      <label>Meeting name<input id="setTitle" required></label>
-      <label>Location or video link<input id="setLocation" placeholder="e.g. Teams link or office meeting room"></label>
-      <p class="hint" id="settingsHint">Team members and their emails are managed on the Members tab.</p>
-      <div style="display:flex;justify-content:flex-end"><button class="primary" type="submit" id="btnSaveSettings">Save settings</button></div>
-    </form>
+    <div class="toolbar">
+      <p class="hint" id="settingsHint">Each meeting type is a regular weekly meeting with its own name, day and time. Minutes, due dates and the calendar follow them.</p>
+      <button class="primary" type="button" id="btnAddSeries">+ Add meeting type</button>
+    </div>
+    <div id="seriesList"></div>
   </div>
 </div>
 
 <dialog id="meetingDlg">
   <form id="meetingForm" method="dialog">
     <h2 id="meetingDlgTitle">New meeting minutes</h2>
+    <label>Meeting<select id="mSeries"></select></label>
     <div class="row">
       <label>Meeting date<input type="date" id="mDate" required></label>
       <label>Title<input id="mTitle" required></label>
@@ -331,6 +322,29 @@ details.tagpick .menu .none{padding:8px;color:var(--muted);font-size:13px}
       <span style="flex:1"></span>
       <button type="button" id="mCancel">Cancel</button>
       <button type="submit" class="primary">Save minutes</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="seriesDlg">
+  <form id="seriesForm" method="dialog">
+    <h2 id="seriesDlgTitle">Add meeting type</h2>
+    <label>Meeting name<input id="sTitle" required placeholder="e.g. UAE B2B Weekly Meeting"></label>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px">
+      <label>Day of week
+        <select id="sWeekday">
+          <option value="0">Sunday</option><option value="1">Monday</option><option value="2">Tuesday</option><option value="3">Wednesday</option><option value="4">Thursday</option><option value="5">Friday</option><option value="6">Saturday</option>
+        </select>
+      </label>
+      <label>Start time (Dubai)<input id="sTime" type="time" required></label>
+      <label>Length (minutes)<input id="sDuration" type="number" min="15" max="600" step="15" required></label>
+    </div>
+    <label>Location or video link<input id="sLocation" placeholder="e.g. Teams link or office meeting room"></label>
+    <div class="foot">
+      <button type="button" class="danger" id="sDelete" hidden>Delete meeting type</button>
+      <span style="flex:1"></span>
+      <button type="button" id="sCancel">Cancel</button>
+      <button type="submit" class="primary">Save meeting type</button>
     </div>
   </form>
 </dialog>
@@ -414,14 +428,15 @@ details.tagpick .menu .none{padding:8px;color:var(--muted);font-size:13px}
 <script>
 (() => {
   const TZ = "Asia/Dubai";
-  const DEFAULTS = { weekday: 1, time: "10:00", duration: 60, title: "UAE B2B Weekly Meeting", location: "", portalUrl: location.origin };
+  const PORTAL_URL = location.origin;
+  const FALLBACK_SERIES = { id: null, weekday: 1, time: "10:00", duration: 60, title: "UAE B2B Weekly Meeting", location: "" };
   const STATUS_LABEL = { open: "Not started", progress: "In progress", done: "Done" };
   const DAYS = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
   const BYDAY = ["SU","MO","TU","WE","TH","FR","SA"];
   const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   const MONTHS_LONG = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
-  const state = { lastPick: {}, focusAfter: null, db: null, settings: { ...DEFAULTS }, meetings: [], items: [], members: [], me: null, filter: "all", calFilter: "all", tab: "actions", calMonth: null };
+  const state = { lastPick: {}, focusAfter: null, db: null, series: [], meetings: [], items: [], members: [], me: null, filter: "all", calFilter: "all", mFilter: "all", tab: "actions", calMonth: null };
   const $ = id => document.getElementById(id);
   const kidsOf = (...k) => k.flat().filter(x => x != null && x !== false);
 
@@ -443,16 +458,31 @@ details.tagpick .menu .none{padding:8px;color:var(--muted);font-size:13px}
   const fmt = s => { if (!s) return ""; const d = parse(s); return `${DAYS[d.getUTCDay()].slice(0,3)} ${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`; };
   const fmtLong = s => { const d = parse(s); return `${DAYS[d.getUTCDay()]}, ${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`; };
 
-  function nextWeekdayAfter(s) { const wd = +state.settings.weekday; let n = (wd - dow(s) + 7) % 7; if (n === 0) n = 7; return addDays(s, n); }
-  function endTime() { const [h, m] = state.settings.time.split(":").map(Number); const tot = h * 60 + m + (+state.settings.duration || 60); return `${pad(Math.floor(tot / 60) % 24)}:${pad(tot % 60)}`; }
-  function nextMeetingDate() {
-    const t = todayISO(), n = (+state.settings.weekday - dow(t) + 7) % 7;
+  // ---------- meeting types (each a weekly slot) ----------
+  const seriesList = () => state.series.length ? state.series : [FALLBACK_SERIES];
+  const seriesById = id => state.series.find(x => x.id === id);
+  const seriesOf = m => (m && seriesById(m.seriesId)) || seriesList()[0];
+  const titleOf = m => m.title || seriesOf(m).title;
+  const multi = () => state.series.length > 1;
+  const inSeries = (m, sr) => !!m && (m.seriesId === sr.id || (!m.seriesId && sr === seriesList()[0]));
+  const itemSeries = it => seriesOf(meetingById(it.meetingId));
+
+  function nextWeekdayAfter(s, sr) { let n = (+sr.weekday - dow(s) + 7) % 7; if (n === 0) n = 7; return addDays(s, n); }
+  function endTime(sr) { const [h, m] = sr.time.split(":").map(Number); const tot = h * 60 + m + (+sr.duration || 60); return `${pad(Math.floor(tot / 60) % 24)}:${pad(tot % 60)}`; }
+  // the next date this meeting type meets: its weekly slot, or an earlier recorded meeting of the same type
+  function nextMeetingDate(sr) {
+    const t = todayISO(), n = (+sr.weekday - dow(t) + 7) % 7;
     let rec = addDays(t, n);
-    if (n === 0 && nowHHMM() >= endTime()) rec = addDays(t, 7);
-    const future = state.meetings.map(m => m.date).filter(d => d > t || (d === t && nowHHMM() < endTime())).sort()[0];
+    if (n === 0 && nowHHMM() >= endTime(sr)) rec = addDays(t, 7);
+    const future = state.meetings.filter(m => m.seriesId === sr.id).map(m => m.date).filter(d => d > t || (d === t && nowHHMM() < endTime(sr))).sort()[0];
     return future && future < rec ? future : rec;
   }
+  // every meeting type with its next date, soonest first
+  const upcoming = () => seriesList().map(sr => ({ sr, date: nextMeetingDate(sr) })).sort((a, b) => a.date.localeCompare(b.date) || a.sr.time.localeCompare(b.sr.time));
+  const dueBy = it => nextMeetingDate(itemSeries(it));
   const lastMeeting = () => state.meetings.filter(m => m.date <= todayISO()).sort((a, b) => b.date.localeCompare(a.date))[0];
+  const seriesRecur = sr => `RRULE:FREQ=WEEKLY;BYDAY=${BYDAY[+sr.weekday]}`;
+  const seriesGcal = sr => gcalTimed(nextMeetingDate(sr), sr.title, `Weekly UAE B2B team meeting. Minutes and action items: ${PORTAL_URL}`, seriesRecur(sr), allEmails(), sr);
 
   // ---------- members and assignees ----------
   const memberById = id => state.members.find(m => m.id === id);
@@ -475,10 +505,10 @@ details.tagpick .menu .none{padding:8px;color:var(--muted);font-size:13px}
   const isAssigned = (it, key) => assigneesOf(it).some(a => (a.id || "name:" + a.name) === key);
 
   // ---------- Google Calendar links ----------
-  function gcalTimed(dateISO, title, details, recur, guests) {
-    const [h, m] = state.settings.time.split(":"), [eh, em] = endTime().split(":"), day = dateISO.replace(/-/g, "");
+  function gcalTimed(dateISO, title, details, recur, guests, sr) {
+    const [h, m] = sr.time.split(":"), [eh, em] = endTime(sr).split(":"), day = dateISO.replace(/-/g, "");
     const p = new URLSearchParams({ action: "TEMPLATE", text: title, dates: `${day}T${h}${m}00/${day}T${eh}${em}00`, ctz: TZ, details: details || "" });
-    if (state.settings.location) p.set("location", state.settings.location);
+    if (sr.location) p.set("location", sr.location);
     if (recur) p.set("recur", recur);
     if (guests && guests.length) p.set("add", guests.join(","));
     return "https://calendar.google.com/calendar/render?" + p.toString();
@@ -542,12 +572,12 @@ details.tagpick .menu .none{padding:8px;color:var(--muted);font-size:13px}
     const meta = el("div", { class: "meta" },
       people.length ? el("span", { class: "tags" }, people.map(tagEl)) : el("span", { class: "owner" }, "Unassigned"),
       el("span", { class: "mono" }, done && it.doneAt ? `Done ${fmt(it.doneAt)}` : `Due ${fmt(it.due)}`),
-      opts.showOrigin && origin ? el("span", {}, `From ${fmt(origin.date)}`) : null, ...pills);
+      opts.showOrigin && origin ? el("span", {}, multi() ? `From ${titleOf(origin)}, ${fmt(origin.date)}` : `From ${fmt(origin.date)}`) : null, ...pills);
     const sel = el("select", { class: "status", "aria-label": "Status", onchange: e => setStatus(it, e.target.value), disabled: !state.db || null },
       ...Object.entries(STATUS_LABEL).map(([v, l]) => el("option", { value: v, selected: it.status === v || null }, l)));
     const side = el("div", { class: "side" }, sel,
       !done && it.due ? el("a", { class: "btn ghost", target: "_blank", rel: "noopener", title: "Add a due-date reminder to Google Calendar, inviting the assigned members",
-        href: gcalAllDay(it.due, `Due: ${it.task}`, `Action item for ${ownerText(it)} from the ${origin ? fmt(origin.date) : ""} B2B weekly meeting.`, people.map(p => p.email).filter(Boolean)) }, "Remind") : null,
+        href: gcalAllDay(it.due, `Due: ${it.task}`, `Action item for ${ownerText(it)} from the ${origin ? `${fmt(origin.date)} ${titleOf(origin)}` : "B2B weekly meeting"}.`, people.map(p => p.email).filter(Boolean)) }, "Remind") : null,
       el("button", { class: "ghost", type: "button", onclick: () => openItem(it), disabled: !state.db || null }, "Edit"));
     return el("div", { class: "item" + (done ? " done" : "") }, check,
       el("div", { class: "body" }, el("div", { class: "task" }, it.task), meta, it.update ? el("div", { class: "upd" }, it.update) : null), side);
@@ -560,19 +590,22 @@ details.tagpick .menu .none{padding:8px;color:var(--muted);font-size:13px}
   }
 
   function renderNext() {
-    const nd = nextMeetingDate(), t = todayISO(), d = parse(nd), days = diffDays(t, nd);
+    const [first, ...rest] = upcoming(), sr = first.sr, nd = first.date, t = todayISO(), d = parse(nd), days = diffDays(t, nd);
     $("calM").textContent = MONTHS[d.getUTCMonth()]; $("calD").textContent = d.getUTCDate(); $("calW").textContent = DAYS[d.getUTCDay()].slice(0, 3);
-    $("nextLabel").textContent = fmtLong(nd);
-    $("nextSub").textContent = `${state.settings.time}–${endTime()} Dubai · ${days === 0 ? "today" : days === 1 ? "tomorrow" : `in ${days} days`}${state.settings.location ? " · " + state.settings.location : ""}`;
+    $("nextLabel").textContent = multi() ? `${sr.title} · ${fmtLong(nd)}` : fmtLong(nd);
+    $("nextSub").textContent = `${sr.time}–${endTime(sr)} Dubai · ${days === 0 ? "today" : days === 1 ? "tomorrow" : `in ${days} days`}${sr.location ? " · " + sr.location : ""}`;
+    $("nextOthers").hidden = !rest.length;
+    $("nextOthers").textContent = rest.length ? "Then: " + rest.map(u => `${u.sr.title}, ${fmt(u.date)} ${u.sr.time}`).join(" · ") : "";
     const open = state.items.filter(i => i.status !== "done"), lm = lastMeeting();
-    const overdue = open.filter(isOverdue).length, dueNext = open.filter(i => !isOverdue(i) && i.due <= nd).length;
+    const overdue = open.filter(isOverdue).length, dueNext = open.filter(i => !isOverdue(i) && i.due <= dueBy(i)).length;
     const closed = state.items.filter(i => i.status === "done" && i.doneAt && (!lm || i.doneAt >= lm.date)).length;
     $("stats").replaceChildren(...kidsOf(
       el("span", { class: "chip" }, `${open.length} open`),
       overdue ? el("span", { class: "chip bad" }, `${overdue} overdue`) : null,
-      el("span", { class: "chip warn" }, `${dueNext} due by this meeting`),
+      el("span", { class: "chip warn" }, multi() ? `${dueNext} due by their next meeting` : `${dueNext} due by this meeting`),
       el("span", { class: "chip ok" }, `${closed} done since last meeting`)));
-    $("gcalSeries").href = gcalTimed(nd, state.settings.title, `Weekly UAE B2B team meeting. Minutes and action items: ${state.settings.portalUrl || ""}`, `RRULE:FREQ=WEEKLY;BYDAY=${BYDAY[+state.settings.weekday]}`, allEmails());
+    $("gcalSeries").href = seriesGcal(sr);
+    $("gcalSeries").textContent = multi() ? `Add ${sr.title} to Google Calendar` : "Add weekly series to Google Calendar";
   }
 
   // filter chips shared by the action list and the calendar
@@ -596,13 +629,13 @@ details.tagpick .menu .none{padding:8px;color:var(--muted);font-size:13px}
         el("button", { class: "primary", type: "button", onclick: () => openMeeting(), disabled: !state.db || null }, "+ New meeting minutes"))));
       return;
     }
-    const nd = nextMeetingDate(), lm = lastMeeting(), f = i => passes(i, state.filter);
+    const nd = upcoming()[0].date, lm = lastMeeting(), f = i => passes(i, state.filter);
     const byDue = (a, b) => (a.due || "").localeCompare(b.due || "") || ownerText(a).localeCompare(ownerText(b));
     const open = state.items.filter(i => i.status !== "done" && f(i)).sort(byDue);
     const groups = [
       ["Overdue", "Past their due date and still open", open.filter(isOverdue)],
-      [`Due by next meeting (${fmt(nd)})`, "Should be done before the team meets", open.filter(i => !isOverdue(i) && i.due <= nd)],
-      ["Later", "Due after the next meeting", open.filter(i => !isOverdue(i) && i.due > nd)],
+      [multi() ? "Due by next meeting" : `Due by next meeting (${fmt(nd)})`, multi() ? "Should be done before their meeting meets again" : "Should be done before the team meets", open.filter(i => !isOverdue(i) && i.due <= dueBy(i))],
+      ["Later", "Due after the next meeting", open.filter(i => !isOverdue(i) && i.due > dueBy(i))],
       [lm ? `Completed since last meeting (${fmt(lm.date)})` : "Completed", "Closed items to confirm in the meeting",
         state.items.filter(i => i.status === "done" && f(i) && (!lm || (i.doneAt && i.doneAt >= lm.date))).sort((a, b) => (b.doneAt || "").localeCompare(a.doneAt || ""))]
     ];
@@ -621,7 +654,12 @@ details.tagpick .menu .none{padding:8px;color:var(--muted);font-size:13px}
         el("button", { class: "primary", type: "button", onclick: () => openMeeting(), disabled: !state.db || null }, "+ New meeting minutes"))));
       return;
     }
-    const ms = [...state.meetings].sort((a, b) => b.date.localeCompare(a.date));
+    $("meetingFilterBar").hidden = !multi();
+    if (state.mFilter !== "all" && !seriesById(state.mFilter)) state.mFilter = "all";
+    const mk = (v, l) => el("button", { type: "button", "aria-pressed": String(state.mFilter === v), onclick: () => { state.mFilter = v; renderMeetings(); } }, l);
+    $("meetingFilters").replaceChildren(...kidsOf(mk("all", "All meetings"), ...state.series.map(sr => mk(sr.id, sr.title))));
+    const ms = state.meetings.filter(m => state.mFilter === "all" || m.seriesId === state.mFilter).sort((a, b) => b.date.localeCompare(a.date));
+    if (!ms.length) { box.replaceChildren(el("div", { class: "empty" }, el("h2", {}, "No minutes for this meeting yet"), el("p", {}, "Record one with + New meeting minutes."))); return; }
     box.replaceChildren(...kidsOf(...ms.map(m => {
       const items = state.items.filter(i => i.meetingId === m.id).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
       const doneN = items.filter(i => i.status === "done").length;
@@ -629,18 +667,18 @@ details.tagpick .menu .none{padding:8px;color:var(--muted);font-size:13px}
       const form = el("form", { class: "addrow", onsubmit: e => { e.preventDefault(); addItem(m, e.target, picker); } },
         el("input", { name: "task", placeholder: "New action item…", required: true, "aria-label": "Action", id: `add-task-${m.id}` }),
         picker.node,
-        el("input", { name: "due", type: "date", value: nextWeekdayAfter(m.date), required: true, "aria-label": "Due date", id: `add-due-${m.id}` }),
+        el("input", { name: "due", type: "date", value: nextWeekdayAfter(m.date, seriesOf(m)), required: true, "aria-label": "Due date", id: `add-due-${m.id}` }),
         el("button", { type: "submit", class: "primary", disabled: !state.db || null }, "Add"));
       return el("article", { class: "meeting", id: "meeting-" + m.id },
         el("div", { class: "mh" },
           el("div", { class: "mt" },
             el("span", { class: "eyebrow mono" }, fmtLong(m.date)),
-            el("h2", {}, m.title || state.settings.title),
+            el("h2", {}, titleOf(m)),
             el("span", { class: "muted", style: "font-size:13px" }, [m.attendees ? `Attendees: ${m.attendees}` : null, items.length ? `${doneN}/${items.length} actions done` : "No actions yet"].filter(Boolean).join(" · "))),
           el("div", { class: "ma" },
             el("button", { class: "ghost", type: "button", onclick: () => openEmail(m) }, "Email minutes"),
             el("button", { class: "ghost", type: "button", onclick: () => copyMinutes(m) }, "Copy minutes"),
-            el("a", { class: "btn ghost", target: "_blank", rel: "noopener", href: gcalTimed(m.date, m.title || state.settings.title, (m.notes || "").slice(0, 1500), null, allEmails()) }, "Google Calendar"),
+            el("a", { class: "btn ghost", target: "_blank", rel: "noopener", href: gcalTimed(m.date, titleOf(m), (m.notes || "").slice(0, 1500), null, allEmails(), seriesOf(m)) }, "Google Calendar"),
             el("button", { class: "ghost", type: "button", onclick: () => openMeeting(m), disabled: !state.db || null }, "Edit minutes"))),
         el("div", { class: "notes" }, m.notes || ""),
         el("div", { class: "items" }, items.map(it => itemRow(it))),
@@ -679,13 +717,13 @@ details.tagpick .menu .none{padding:8px;color:var(--muted);font-size:13px}
 
   // ---------- calendar ----------
   function calEvents(dateISO) {
-    const evs = [], wd = +state.settings.weekday, t = todayISO();
+    const evs = [], t = todayISO();
     const recorded = state.meetings.filter(m => m.date === dateISO);
-    recorded.forEach(m => evs.push({ cls: "ev meet", text: `${state.settings.time} Meeting minutes`, title: `${m.title || state.settings.title}: open the minutes`, go: () => { setTab("meetings"); requestAnimationFrame(() => { const n = $("meeting-" + m.id); if (n) n.scrollIntoView({ behavior: "smooth", block: "start" }); }); } }));
-    if (!recorded.length && dow(dateISO) === wd) {
+    recorded.forEach(m => evs.push({ cls: "ev meet", text: `${seriesOf(m).time} ${titleOf(m)}`, title: `${titleOf(m)}: open the minutes`, go: () => { state.mFilter = "all"; setTab("meetings"); requestAnimationFrame(() => { const n = $("meeting-" + m.id); if (n) n.scrollIntoView({ behavior: "smooth", block: "start" }); }); } }));
+    seriesList().filter(sr => dow(dateISO) === +sr.weekday && !recorded.some(m => inSeries(m, sr))).sort((a, b) => a.time.localeCompare(b.time)).forEach(sr => {
       const past = dateISO < t;
-      evs.push({ cls: "ev slot" + (past ? " missed" : ""), text: `${state.settings.time} ${past ? "No minutes" : "Weekly meeting"}`, title: past ? "Record minutes for this date" : "Scheduled weekly meeting. Click to start the minutes", go: () => openMeeting(null, dateISO) });
-    }
+      evs.push({ cls: "ev slot" + (past ? " missed" : ""), text: `${sr.time} ${sr.title}${past ? " (no minutes)" : ""}`, title: past ? `${sr.title}: record minutes for this date` : `${sr.title}: scheduled. Click to start the minutes`, go: () => openMeeting(null, dateISO, sr) });
+    });
     state.items.filter(i => i.due === dateISO && passes(i, state.calFilter)).forEach(i => {
       const cls = i.status === "done" ? "done" : isOverdue(i) ? "overdue" : "due";
       evs.push({ cls: "ev " + cls, text: `${i.task} · ${ownerText(i)}`, title: `${i.task}\n${ownerText(i)} · ${STATUS_LABEL[i.status]}`, go: () => openItem(i) });
@@ -721,14 +759,23 @@ details.tagpick .menu .none{padding:8px;color:var(--muted);font-size:13px}
   $("calNext").addEventListener("click", () => shiftMonth(1));
   $("calToday").addEventListener("click", () => { state.calMonth = todayISO().slice(0, 7); renderCalendar(); });
 
-  function renderSettingsForm() {
-    const s = state.settings;
-    $("setWeekday").value = String(s.weekday); $("setTime").value = s.time; $("setDuration").value = s.duration;
-    $("setTitle").value = s.title; $("setLocation").value = s.location || "";
-    const ro = !isAdmin();
-    $("btnSaveSettings").hidden = ro;
-    $("settingsHint").textContent = ro ? "Only an admin can change these settings." : "Team members and their emails are managed on the Members tab.";
-    $("settingsForm").querySelectorAll("input,select").forEach(i => i.disabled = ro);
+  function renderSettings() {
+    const admin = isAdmin();
+    $("btnAddSeries").hidden = !admin;
+    $("settingsHint").textContent = admin
+      ? "Each meeting type is a regular weekly meeting with its own name, day and time. Minutes, due dates and the calendar follow them."
+      : "These are the team's regular meetings. Only an admin can change them.";
+    $("seriesList").replaceChildren(el("div", { class: "list" }, seriesList().map(sr => {
+      const n = state.meetings.filter(m => inSeries(m, sr)).length;
+      return el("div", { class: "item", style: "grid-template-columns:1fr auto" },
+        el("div", { class: "body" },
+          el("div", { class: "task" }, sr.title),
+          el("div", { class: "meta" }, el("span", {}, `Every ${DAYS[+sr.weekday]} · ${sr.time}–${endTime(sr)} Dubai`), sr.location ? el("span", {}, sr.location) : null,
+            el("span", {}, `Next ${fmt(nextMeetingDate(sr))}`), el("span", {}, `${n} meeting${n === 1 ? "" : "s"} recorded`))),
+        el("div", { class: "side" },
+          el("a", { class: "btn ghost", target: "_blank", rel: "noopener", href: seriesGcal(sr), title: "Add this weekly meeting to Google Calendar, inviting all active members" }, "Google Calendar"),
+          admin && sr.id ? el("button", { class: "ghost", type: "button", onclick: () => openSeries(sr) }, "Edit") : null));
+    })));
   }
 
   function render() {
@@ -739,6 +786,7 @@ details.tagpick .menu .none{padding:8px;color:var(--muted);font-size:13px}
     if (state.tab === "calendar") renderCalendar();
     if (state.tab === "meetings") renderMeetings();
     if (state.tab === "members") renderMembers();
+    if (state.tab === "settings") renderSettings();
     if (state.focusAfter && $(state.focusAfter)) { $(state.focusAfter).focus(); state.focusAfter = null; }
   }
 
@@ -748,7 +796,6 @@ details.tagpick .menu .none{padding:8px;color:var(--muted);font-size:13px}
     document.querySelectorAll("nav.tabs button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.tab === t)));
     for (const p of TABS) $("panel-" + p).hidden = p !== t;
     try { localStorage.setItem("mom-tab", t); } catch {}
-    if (t === "settings") renderSettingsForm();
     render();
   }
   document.querySelectorAll("nav.tabs button").forEach(b => b.addEventListener("click", () => setTab(b.dataset.tab)));
@@ -768,18 +815,19 @@ details.tagpick .menu .none{padding:8px;color:var(--muted);font-size:13px}
   // ---------- email minutes ----------
   function emailBody(m, noteLimit) {
     const items = state.items.filter(i => i.meetingId === m.id);
-    const open = state.items.filter(i => i.status !== "done" && i.meetingId !== m.id && (meetingById(i.meetingId) || {}).date < m.date);
+    const sr = seriesOf(m);
+    const open = state.items.filter(i => i.status !== "done" && i.meetingId !== m.id && (meetingById(i.meetingId) || {}).date < m.date && inSeries(meetingById(i.meetingId), sr));
     let notes = m.notes || "";
     if (noteLimit && notes.length > noteLimit) notes = notes.slice(0, noteLimit).trimEnd() + "…\n(Full notes are in the portal.)";
-    const L = ["Hi team,", "", `Please find the minutes of the ${m.title || state.settings.title} held on ${fmtLong(m.date)}.`];
+    const L = ["Hi team,", "", `Please find the minutes of the ${titleOf(m)} held on ${fmtLong(m.date)}.`];
     if (m.attendees) L.push("", `Attendees: ${m.attendees}`);
     if (notes) L.push("", "DISCUSSION AND DECISIONS", notes);
     L.push("", "ACTION ITEMS");
     if (!items.length) L.push("No new action items.");
     items.forEach((i, n) => L.push(`${n + 1}. ${i.task}`, `   Owner: ${ownerText(i)} | Due: ${fmt(i.due)} | Status: ${STATUS_LABEL[i.status]}`));
     if (open.length) { L.push("", "STILL OPEN FROM EARLIER MEETINGS"); open.forEach(i => L.push(`- ${i.task} | ${ownerText(i)} | due ${fmt(i.due)}${isOverdue(i) ? " (overdue)" : ""}`)); }
-    L.push("", `Please update your items before the next meeting on ${fmtLong(nextWeekdayAfter(m.date))}.`);
-    if (state.settings.portalUrl) L.push("", `View and update the action items here: ${state.settings.portalUrl}`);
+    L.push("", `Please update your items before the next meeting on ${fmtLong(nextWeekdayAfter(m.date, sr))}.`);
+    L.push("", `View and update the action items here: ${PORTAL_URL}`);
     L.push("", "Thanks");
     return L.join("\n");
   }
@@ -791,7 +839,7 @@ details.tagpick .menu .none{padding:8px;color:var(--muted);font-size:13px}
   }
   function openEmail(m) {
     $("eTo").value = allEmails().join(", ");
-    $("eSubject").value = `MoM: ${m.title || state.settings.title} | ${fmtLong(m.date)}`;
+    $("eSubject").value = `MoM: ${titleOf(m)} | ${fmtLong(m.date)}`;
     let body = emailBody(m);
     if (body.length > 5000) body = emailBody(m, 1500);  // keep compose links within URL limits
     $("eBody").value = body;
@@ -804,17 +852,19 @@ details.tagpick .menu .none{padding:8px;color:var(--muted);font-size:13px}
 
   function copyMinutes(m) {
     const items = state.items.filter(i => i.meetingId === m.id);
-    const lines = [`${m.title || state.settings.title} | ${fmtLong(m.date)}`];
+    const lines = [`${titleOf(m)} | ${fmtLong(m.date)}`];
     if (m.attendees) lines.push(`Attendees: ${m.attendees}`);
     if (m.notes) lines.push("", "Discussion:", m.notes);
     if (items.length) { lines.push("", "Action items:"); items.forEach((i, n) => lines.push(`${n + 1}. ${i.task} | ${ownerText(i)} | due ${fmt(i.due)} | ${STATUS_LABEL[i.status]}`)); }
     copyText(lines.join("\n"), "Minutes copied");
   }
   $("btnCopyAgenda").addEventListener("click", () => {
-    const nd = nextMeetingDate(), lm = lastMeeting();
-    const open = state.items.filter(i => i.status !== "done").sort((a, b) => ownerText(a).localeCompare(ownerText(b)) || (a.due || "").localeCompare(b.due || ""));
-    const done = state.items.filter(i => i.status === "done" && (!lm || (i.doneAt && i.doneAt >= lm.date)));
-    const lines = [`${state.settings.title} | ${fmtLong(nd)} ${state.settings.time} Dubai`, "", "Action items review:"];
+    const { sr, date: nd } = upcoming()[0];
+    const mine = i => inSeries(meetingById(i.meetingId), sr);
+    const lm = state.meetings.filter(m => inSeries(m, sr) && m.date <= todayISO()).sort((a, b) => b.date.localeCompare(a.date))[0];
+    const open = state.items.filter(i => i.status !== "done" && mine(i)).sort((a, b) => ownerText(a).localeCompare(ownerText(b)) || (a.due || "").localeCompare(b.due || ""));
+    const done = state.items.filter(i => i.status === "done" && mine(i) && (!lm || (i.doneAt && i.doneAt >= lm.date)));
+    const lines = [`${sr.title} | ${fmtLong(nd)} ${sr.time} Dubai`, "", "Action items review:"];
     if (!open.length) lines.push("No open items.");
     open.forEach(i => { const c = carriedCount(i); lines.push(`- ${i.task} | ${ownerText(i)} | due ${fmt(i.due)} | ${isOverdue(i) ? "OVERDUE" : STATUS_LABEL[i.status]}${c ? ` | carried ×${c}` : ""}`); });
     if (done.length) { lines.push("", "Completed since last meeting:"); done.forEach(i => lines.push(`- ${i.task} | ${ownerText(i)}`)); }
@@ -831,7 +881,7 @@ details.tagpick .menu .none{padding:8px;color:var(--muted);font-size:13px}
   }
   async function load() {
     const d = await api("GET", "state");
-    Object.assign(state, { me: d.user, settings: { ...DEFAULTS, ...d.settings }, members: d.users, meetings: d.meetings, items: d.items, db: true });
+    Object.assign(state, { me: d.user, series: d.series || [], members: d.users, meetings: d.meetings, items: d.items, db: true });
     $("banner").hidden = true;
     render();
   }
@@ -863,23 +913,38 @@ details.tagpick .menu .none{padding:8px;color:var(--muted);font-size:13px}
 
   // meeting dialog
   let editingMeeting = null;
-  function openMeeting(m, dateISO) {
+  // most recent date this meeting type met (today or earlier); today if that one already has minutes
+  function defaultDate(sr) {
+    const t = todayISO(), d = addDays(t, -((dow(t) - +sr.weekday + 7) % 7));
+    return state.meetings.some(x => x.date === d && inSeries(x, sr)) ? t : d;
+  }
+  function openMeeting(m, dateISO, sr) {
     if (!state.db) return;
     editingMeeting = m || null;
+    sr = m ? seriesById(m.seriesId) : (sr || upcoming()[0].sr);
     $("meetingDlgTitle").textContent = m ? "Edit meeting minutes" : "New meeting minutes";
-    const t = todayISO(), defDate = addDays(t, -((dow(t) - +state.settings.weekday + 7) % 7));
-    $("mDate").value = m ? m.date : (dateISO || (state.meetings.some(x => x.date === defDate) ? t : defDate));
-    $("mTitle").value = m ? (m.title || state.settings.title) : state.settings.title;
+    $("mSeries").replaceChildren(...kidsOf(...state.series.map(x => el("option", { value: x.id }, x.title)), el("option", { value: "" }, "Other (one-off meeting)")));
+    $("mSeries").value = sr ? sr.id || "" : "";
+    $("mSeries").dataset.pickedDate = dateISO ? "1" : "";
+    $("mDate").value = m ? m.date : (dateISO || defaultDate(sr || seriesList()[0]));
+    $("mTitle").value = m ? titleOf(m) : (sr ? sr.title : "");
     $("mAttendees").value = m ? (m.attendees || "") : sortedMembers().filter(x => x.active).map(x => x.name).join(", ");
     $("mNotes").value = m ? (m.notes || "") : "";
     $("mDelete").hidden = !(m && isAdmin());
     if (m) arm($("mDelete"), "Delete meeting", async () => { if (await guard(() => api("DELETE", "meetings/" + m.id), "Meeting deleted")) $("meetingDlg").close(); });
     $("meetingDlg").showModal();
   }
+  // picking a meeting type fills in its name and (for new minutes) its usual date
+  $("mSeries").addEventListener("change", () => {
+    const sr = seriesById($("mSeries").value), cur = $("mTitle").value.trim();
+    if (sr && (!cur || state.series.some(x => x.title === cur))) $("mTitle").value = sr.title;
+    if (sr && !editingMeeting && !$("mSeries").dataset.pickedDate) $("mDate").value = defaultDate(sr);
+  });
+  $("mDate").addEventListener("input", () => { $("mSeries").dataset.pickedDate = "1"; });
   $("mCancel").addEventListener("click", () => $("meetingDlg").close());
   $("meetingForm").addEventListener("submit", async e => {
     e.preventDefault();
-    const data = { date: $("mDate").value, title: $("mTitle").value.trim(), attendees: $("mAttendees").value.trim(), notes: $("mNotes").value.trim() };
+    const data = { seriesId: $("mSeries").value || null, date: $("mDate").value, title: $("mTitle").value.trim(), attendees: $("mAttendees").value.trim(), notes: $("mNotes").value.trim() };
     if (!data.date || !data.title) return;
     const m = editingMeeting;
     const ok = await guard(() => m ? api("PUT", "meetings/" + m.id, data) : api("POST", "meetings", data), m ? "Minutes saved" : "Meeting created");
@@ -944,11 +1009,26 @@ details.tagpick .menu .none{padding:8px;color:var(--muted);font-size:13px}
     catch (err) { toast(err.message); }
   });
 
-  // settings (admin)
-  $("settingsForm").addEventListener("submit", e => {
+  // meeting types (admin)
+  let editingSeries = null;
+  function openSeries(sr) {
+    if (!state.db || !isAdmin()) return;
+    editingSeries = sr || null;
+    const src = sr || { weekday: 1, time: "10:00", duration: 60, title: "", location: "" };
+    $("seriesDlgTitle").textContent = sr ? "Edit meeting type" : "Add meeting type";
+    $("sTitle").value = src.title; $("sWeekday").value = String(src.weekday); $("sTime").value = src.time; $("sDuration").value = src.duration; $("sLocation").value = src.location || "";
+    $("sDelete").hidden = !sr || state.series.length <= 1;
+    if (sr) arm($("sDelete"), "Delete meeting type", async () => { if (await guard(() => api("DELETE", "series/" + sr.id), "Meeting type deleted")) $("seriesDlg").close(); });
+    $("seriesDlg").showModal();
+  }
+  $("btnAddSeries").addEventListener("click", () => openSeries());
+  $("sCancel").addEventListener("click", () => $("seriesDlg").close());
+  $("seriesForm").addEventListener("submit", async e => {
     e.preventDefault();
-    const data = { weekday: +$("setWeekday").value, time: $("setTime").value || "10:00", duration: Math.max(15, +$("setDuration").value || 60), title: $("setTitle").value.trim() || DEFAULTS.title, location: $("setLocation").value.trim() };
-    guard(() => api("PUT", "settings", data), "Settings saved");
+    const sr = editingSeries;
+    const data = { title: $("sTitle").value.trim(), weekday: +$("sWeekday").value, time: $("sTime").value || "10:00", duration: Math.max(15, +$("sDuration").value || 60), location: $("sLocation").value.trim() };
+    if (!data.title) return;
+    if (await guard(() => sr ? api("PUT", "series/" + sr.id, data) : api("POST", "series", data), sr ? "Meeting type saved" : "Meeting type added")) $("seriesDlg").close();
   });
 
   // ---------- sign-in ----------

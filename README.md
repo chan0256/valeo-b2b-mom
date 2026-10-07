@@ -1,53 +1,37 @@
 # B2B Weekly MoM portal: launch guide (no terminal)
 
-The portal runs on **Cloudflare Pages** with a **Cloudflare D1** database. Everything below happens in your web browser.
+The portal runs as a **Cloudflare Worker** with a **Cloudflare D1** database. Everything below happens in your web browser. Each push to the `main` branch of this repository goes live by itself.
 
-## What's in this folder
+## What's in this repository
 
 | Path | What it is |
 |---|---|
 | `public/index.html` | The web app |
-| `functions/api/[[route]].js` | The server part (sign-in, saving data) |
+| `src/worker.js`, `src/api.js` | The server part (sign-in, saving data) |
+| `wrangler.jsonc` | Worker name and the link to the `b2b-mom` database (binding `DB`) |
 | `schema.sql` | The setup text you paste into the database console |
 
-## Step 1. Put the code on GitHub
+## Step 1. Create the database
 
-1. Sign in at github.com and create a new **private** repository named `valeo-b2b-mom`. Leave it empty (no README).
-2. Connect GitHub to Claude at https://claude.ai/connect-github and allow it access to that repository. Claude then uploads the files for you.
-   - If you'd rather upload them yourself, open the repository, choose **Add file → Upload files**, and drag in the `public` and `functions` folders and `schema.sql`.
+1. Cloudflare dashboard → **Storage & Databases → D1 SQL Database → Create**, named `b2b-mom`.
+2. Open it → **Console** tab. Paste the whole of `schema.sql` and press **Execute**.
+3. Copy its **Database ID** into `database_id` in `wrangler.jsonc` (already done for this project).
 
-## Step 2. Create the database
+## Step 2. Create the Worker
 
-1. Open the Cloudflare dashboard → **Storage & Databases → D1 SQL Database → Create**.
-2. Name it `b2b-mom` and press **Create**.
-3. Open the new database → **Console** tab. Paste the whole of `schema.sql` and press **Execute**.
+1. **Workers & Pages → Create → Import a repository**, pick `valeo-b2b-mom`, and deploy.
+2. The Worker name in the dashboard must match `name` in `wrangler.jsonc` (`valeo-b2b-mom`).
 
-## Step 3. Create the website
+## Step 3. Use your own address
 
-1. Go to **Workers & Pages → Create → Pages → Connect to Git**, then pick the `valeo-b2b-mom` repository.
-2. Build settings:
-   - Framework preset: **None**
-   - Build command: *(leave empty)*
-   - Build output directory: `public`
-3. Press **Save and Deploy**. Wait for it to finish.
+Open the Worker → **Settings → Domains & Routes → Add → Custom domain**, enter `b2bmom.valeoautomation.com`.
 
-## Step 4. Connect the database to the website
+## Step 4. First sign-in
 
-1. Open the Pages project → **Settings → Bindings → Add → D1 database**.
-2. Variable name: `DB`. D1 database: `b2b-mom`. Save.
-3. Go to **Deployments**, open the menu (⋯) on the latest one and press **Retry deployment**, so the website picks up the database.
+Open the address **before sharing it**. The first person to open it creates the admin account. Then:
+- add your team on the **Members** tab, with a temporary password for each person;
+- set up your regular meetings on the **Settings** tab (one meeting type per weekly meeting, each with its own name, day, time and location).
 
-## Step 5. Use your own address
+## Updates
 
-1. In the Pages project → **Custom domains → Set up a custom domain**.
-2. Enter `b2bmom.valeoautomation.com` and continue.
-   - **Domain already on Cloudflare:** Cloudflare adds the DNS record for you. Press **Activate domain**.
-   - **Domain elsewhere (GoDaddy and similar):** add the CNAME record Cloudflare shows (name `b2bmom`, value `<project>.pages.dev`) at your domain provider, then wait for it to turn **Active**.
-
-## Step 6. First sign-in
-
-Open your new address **before sharing it**. The first person to open it creates the admin account. Then add your team on the **Members** tab, with a temporary password for each person.
-
-## Later changes
-
-Once the code is on GitHub, every update Claude pushes to the repository goes live by itself within a minute or two.
+Database changes needed by new features (such as meeting types) are applied by the portal itself on its first request after an update, so there is nothing to run in the console.

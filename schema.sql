@@ -56,3 +56,15 @@ CREATE TABLE IF NOT EXISTS item_assignees (
   PRIMARY KEY (item_id, user_id)
 );
 CREATE INDEX IF NOT EXISTS item_assignees_user ON item_assignees(user_id);
+-- Meeting types: each is a weekly slot with its own name, day and time.
+-- The portal also creates this table (and meetings.series_id) on its own.
+CREATE TABLE IF NOT EXISTS series (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  weekday INTEGER NOT NULL DEFAULT 1,
+  time TEXT NOT NULL DEFAULT '10:00',
+  duration INTEGER NOT NULL DEFAULT 60,
+  location TEXT NOT NULL DEFAULT '',
+  sort INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL
+);
