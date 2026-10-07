@@ -1,0 +1,989 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>B2B Weekly MoM</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0}
+[hidden]{display:none!important}
+/* Layout: one working column; a "next meeting" band on top, then tabs for the action list, the minutes log and settings. */
+:root{
+  --bg:#f3f5f7; --surface:#ffffff; --sunk:#e8ecf0; --line:#d5dbe2;
+  --fg:#16212c; --muted:#5b6876; --accent:#0d6b73; --accent-fg:#ffffff; --accent-soft:#d8eeee;
+  --ok:#1d7a46; --ok-soft:#dcf1e4; --warn:#a15c00; --warn-soft:#fbecd3; --bad:#b4232c; --bad-soft:#fbe0e1;
+  --f-display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body:"IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono:"IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --r:8px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f161d; --surface:#17212a; --sunk:#1e2a35; --line:#2c3a47;
+  --fg:#e5ebf0; --muted:#94a3b1; --accent:#4cc1c6; --accent-fg:#06272a; --accent-soft:#163c40;
+  --ok:#5fd18f; --ok-soft:#173826; --warn:#f0b35a; --warn-soft:#3a2b12; --bad:#f2777d; --bad-soft:#401c20; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f161d; --surface:#17212a; --sunk:#1e2a35; --line:#2c3a47;
+  --fg:#e5ebf0; --muted:#94a3b1; --accent:#4cc1c6; --accent-fg:#06272a; --accent-soft:#163c40;
+  --ok:#5fd18f; --ok-soft:#173826; --warn:#f0b35a; --warn-soft:#3a2b12; --bad:#f2777d; --bad-soft:#401c20; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:15px/1.5 var(--f-body)}
+.wrap{max-width:980px;margin:0 auto;padding:24px 16px 64px}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0;line-height:1.15}
+h1{font-size:28px;letter-spacing:-.01em}
+h2{font-size:19px}
+.eyebrow{font:500 11px/1 var(--f-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.muted{color:var(--muted)}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+header.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:18px}
+header.top .title{display:grid;gap:6px}
+button,.btn{font:500 14px/1 var(--f-body);border:1px solid var(--line);background:var(--surface);color:var(--fg);border-radius:6px;padding:9px 13px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+button:hover,.btn:hover{border-color:var(--accent)}
+button.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+button.ghost,.btn.ghost{background:transparent;border-color:transparent;color:var(--accent);padding:6px 8px}
+button.ghost:hover,.btn.ghost:hover{background:var(--accent-soft)}
+button.danger{color:var(--bad)}
+button.danger.armed{background:var(--bad);color:var(--surface);border-color:var(--bad)}
+button:disabled{opacity:.5;cursor:not-allowed}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.next{display:grid;grid-template-columns:auto 1fr auto;gap:20px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:18px 20px;margin-bottom:18px}
+.cal{width:72px;border:1px solid var(--line);border-radius:6px;overflow:hidden;text-align:center;background:var(--surface)}
+.cal .m{background:var(--accent);color:var(--accent-fg);font:600 11px/1 var(--f-mono);letter-spacing:.1em;padding:5px 0;text-transform:uppercase}
+.cal .d{font:700 30px/1.1 var(--f-display);padding:4px 0 0}
+.cal .w{font:500 11px/1 var(--f-mono);color:var(--muted);padding:2px 0 7px;text-transform:uppercase}
+.next .info{display:grid;gap:4px;min-width:0}
+.next .info strong{font:600 18px/1.25 var(--f-display)}
+.stats{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+.chip{font:500 12px/1 var(--f-mono);padding:5px 8px;border-radius:99px;background:var(--sunk);color:var(--fg);font-variant-numeric:tabular-nums}
+.chip.bad{background:var(--bad-soft);color:var(--bad)}
+.chip.warn{background:var(--warn-soft);color:var(--warn)}
+.chip.ok{background:var(--ok-soft);color:var(--ok)}
+.next .acts{display:flex;flex-direction:column;gap:8px;align-items:stretch}
+
+nav.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:18px;overflow-x:auto}
+nav.tabs button{border:none;border-bottom:2px solid transparent;border-radius:0;background:none;padding:10px 12px;color:var(--muted)}
+nav.tabs button[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--accent)}
+
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;margin-bottom:14px}
+.toolbar .filters{display:flex;flex-wrap:wrap;gap:6px}
+.toolbar .filters button{padding:6px 10px;font-size:13px;border-radius:99px}
+.toolbar .filters button[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+
+section.group{margin-bottom:22px}
+section.group > header{display:flex;align-items:baseline;gap:10px;margin-bottom:8px}
+section.group > header .count{font:500 12px var(--f-mono);color:var(--muted)}
+.list{background:var(--surface);border:1px solid var(--line);border-radius:var(--r)}
+.item{display:grid;grid-template-columns:28px 1fr auto;gap:12px;padding:12px 14px;border-top:1px solid var(--line);align-items:start}
+.item:first-child{border-top:none}
+.item .body{min-width:0;display:grid;gap:4px}
+.item .task{font-weight:500;overflow-wrap:anywhere}
+.item.done .task{text-decoration:line-through;color:var(--muted)}
+.item .meta{display:flex;flex-wrap:wrap;gap:6px 12px;font-size:13px;color:var(--muted);align-items:center}
+.item .meta .owner{color:var(--fg);font-weight:500}
+.item .upd{font-size:13px;color:var(--muted);overflow-wrap:anywhere;white-space:pre-wrap}
+.item .side{display:flex;gap:4px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.check{width:22px;height:22px;margin-top:1px;border:2px solid var(--line);border-radius:5px;background:var(--surface);padding:0;display:grid;place-items:center;cursor:pointer}
+.check:hover{border-color:var(--ok)}
+.item.done .check{background:var(--ok);border-color:var(--ok)}
+.check svg{width:14px;height:14px;stroke:var(--surface);fill:none;stroke-width:3;opacity:0}
+.item.done .check svg{opacity:1}
+.pill{font:500 11px/1 var(--f-mono);letter-spacing:.04em;padding:4px 7px;border-radius:4px;text-transform:uppercase}
+.pill.open{background:var(--sunk);color:var(--muted)}
+.pill.progress{background:var(--accent-soft);color:var(--accent)}
+.pill.done{background:var(--ok-soft);color:var(--ok)}
+.pill.overdue{background:var(--bad-soft);color:var(--bad)}
+.pill.carry{background:var(--warn-soft);color:var(--warn)}
+select.status{font:500 13px var(--f-body);padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--fg)}
+
+.meeting{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);margin-bottom:16px}
+.meeting > .mh{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--line)}
+.meeting .mh .mt{display:grid;gap:3px;min-width:0}
+.meeting .mh .ma{display:flex;flex-wrap:wrap;gap:4px}
+.meeting .notes{padding:14px 16px;white-space:pre-wrap;overflow-wrap:anywhere;border-bottom:1px solid var(--line)}
+.meeting .notes:empty::before{content:"No discussion notes yet. Use Edit minutes to add them.";color:var(--muted)}
+.meeting .items .item:first-child{border-top:none}
+.meeting .items{border-bottom:1px solid var(--line)}
+.meeting .items:empty{display:none}
+.addrow{display:grid;grid-template-columns:1fr 220px 150px auto;gap:8px;padding:12px 16px}
+input,textarea,select{font:inherit;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:8px 10px;width:100%;min-width:0}
+textarea{resize:vertical;min-height:120px;line-height:1.5}
+label{display:grid;gap:5px;font-size:13px;font-weight:500;color:var(--muted)}
+
+.empty{background:var(--surface);border:1px dashed var(--line);border-radius:var(--r);padding:28px 20px;text-align:center;display:grid;gap:10px;justify-items:center}
+.empty p{margin:0;max-width:46ch;color:var(--muted)}
+.banner{background:var(--warn-soft);color:var(--warn);border-radius:6px;padding:10px 14px;margin-bottom:14px;font-size:14px}
+
+dialog{border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--fg);padding:0;width:min(560px,calc(100vw - 32px));max-height:calc(100vh - 32px)}
+dialog::backdrop{background:rgb(0 0 0 / .45)}
+dialog form{display:grid;gap:14px;padding:20px}
+dialog .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+dialog .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+dialog .foot{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:6px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s}
+.toast.show{opacity:1}
+.hint{font-size:13px;color:var(--muted);margin:0}
+
+@media (max-width:640px){
+  .next{grid-template-columns:auto 1fr}
+  .next .acts{grid-column:1/-1;flex-direction:row;flex-wrap:wrap}
+  .addrow{grid-template-columns:1fr 1fr}
+  .addrow input[name=task]{grid-column:1/-1}
+  .item{grid-template-columns:28px 1fr}
+  .item .side{grid-column:2;justify-content:flex-start}
+  dialog .row,dialog .row3{grid-template-columns:1fr}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+/* members and tags */
+.userbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:flex-end}
+.userbar .who{font-size:13px;color:var(--muted)}
+.tags{display:inline-flex;flex-wrap:wrap;gap:4px}
+.tag{display:inline-flex;align-items:center;gap:5px;font:500 12px/1 var(--f-body);padding:3px 8px 3px 3px;border-radius:99px;background:var(--sunk);color:var(--fg);white-space:nowrap}
+.tag .ini{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font:600 9px/1 var(--f-mono);background:var(--accent);color:var(--accent-fg)}
+.tag.me{background:var(--accent-soft);color:var(--accent)}
+.tag.legacy .ini{background:var(--line);color:var(--muted)}
+.avatar{width:36px;height:36px;border-radius:50%;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font:600 13px var(--f-mono)}
+.people .item{grid-template-columns:40px 1fr auto}
+.pill.admin{background:var(--accent-soft);color:var(--accent)}
+details.tagpick{position:relative;min-width:0}
+details.tagpick > summary{list-style:none;cursor:pointer;border:1px solid var(--line);border-radius:6px;padding:6px 10px;min-height:38px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;background:var(--surface);color:var(--muted);font-size:14px}
+details.tagpick > summary::-webkit-details-marker{display:none}
+details.tagpick[open] > summary{border-color:var(--accent)}
+details.tagpick .menu{position:absolute;z-index:20;top:calc(100% + 4px);left:0;min-width:240px;max-width:min(320px,calc(100vw - 32px));max-height:280px;overflow:auto;background:var(--surface);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgb(0 0 0 / .18);padding:6px}
+details.tagpick .menu label{display:flex;flex-direction:row;align-items:center;gap:8px;padding:7px 8px;border-radius:5px;color:var(--fg);font-weight:400;cursor:pointer}
+details.tagpick .menu label:hover{background:var(--sunk)}
+details.tagpick .menu input{width:auto}
+details.tagpick .menu .sub{color:var(--muted);font-size:12px;margin-left:auto}
+details.tagpick .menu .none{padding:8px;color:var(--muted);font-size:13px}
+/* calendar */
+.calhead{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-bottom:12px}
+.calhead .nav{display:flex;gap:6px;align-items:center}
+.calhead h2{min-width:9ch}
+.legend{display:flex;flex-wrap:wrap;gap:10px;font-size:12px;color:var(--muted);margin-bottom:10px}
+.legend span{display:inline-flex;align-items:center;gap:5px}
+.legend i{width:10px;height:10px;border-radius:3px;display:inline-block}
+.grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border:1px solid var(--line);border-radius:var(--r);overflow:hidden;background:var(--line);gap:1px}
+.grid .dh{background:var(--sunk);font:500 11px/1 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:8px}
+.grid .day{background:var(--surface);min-height:108px;padding:6px;display:flex;flex-direction:column;gap:3px;min-width:0}
+.grid .day.out{background:var(--bg)}
+.grid .day.out .dn{opacity:.45}
+.grid .dn{font:500 12px/1 var(--f-mono);color:var(--muted);padding:2px 2px 4px}
+.grid .day.today .dn{color:var(--accent-fg);background:var(--accent);border-radius:4px;padding:3px 5px;align-self:flex-start}
+.ev{display:block;width:100%;text-align:left;border:none;border-radius:4px;padding:3px 6px;font:500 12px/1.3 var(--f-body);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;background:var(--sunk);color:var(--fg)}
+.ev:hover{filter:brightness(.96)}
+.ev.meet{background:var(--accent);color:var(--accent-fg)}
+.ev.slot{background:var(--accent-soft);color:var(--accent)}
+.ev.slot.missed{background:transparent;color:var(--muted);border:1px dashed var(--line)}
+.ev.due{background:var(--warn-soft);color:var(--warn)}
+.ev.overdue{background:var(--bad-soft);color:var(--bad)}
+.ev.done{background:var(--ok-soft);color:var(--ok);text-decoration:line-through}
+.agenda{display:none}
+.agenda .aday{display:grid;grid-template-columns:64px 1fr;gap:10px;padding:10px 14px;border-top:1px solid var(--line)}
+.agenda .aday:first-child{border-top:none}
+.agenda .adate{font:500 12px/1.3 var(--f-mono);color:var(--muted)}
+.agenda .adate b{display:block;font:700 20px/1 var(--f-display);color:var(--fg)}
+.agenda .aday.today .adate b{color:var(--accent)}
+.agenda .evs{display:grid;gap:4px;min-width:0}
+.agenda .ev{white-space:normal}
+@media (max-width:640px){
+  .grid{display:none}
+  .agenda{display:block}
+  .people .item{grid-template-columns:40px 1fr}
+}
+.auth{max-width:400px;margin:10vh auto 0;padding-inline:16px}
+.auth form{display:grid;gap:14px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:24px}
+.auth .err{color:var(--bad);font-size:14px;margin:0}
+.pill.inactive{background:var(--sunk);color:var(--muted)}
+</style>
+</head>
+<body>
+
+<div class="auth" id="authView" hidden>
+  <form id="loginForm">
+    <span class="eyebrow">UAE · B2B team</span>
+    <h1>Weekly meeting minutes</h1>
+    <label>Email<input type="email" id="loginEmail" autocomplete="username" required></label>
+    <label>Password<input type="password" id="loginPassword" autocomplete="current-password" required></label>
+    <p class="err" id="loginErr" hidden></p>
+    <button class="primary" type="submit">Sign in</button>
+    <p class="hint">Ask the portal admin for an account if you don't have one.</p>
+  </form>
+  <form id="setupForm" hidden>
+    <span class="eyebrow">First-time setup</span>
+    <h1>Create the admin account</h1>
+    <p class="hint">This account manages members and meeting settings. Only the first person to open the portal sees this step.</p>
+    <label>Your name<input id="setupName" autocomplete="name" required></label>
+    <label>Email<input type="email" id="setupEmail" autocomplete="username" required></label>
+    <label>Password (8+ characters)<input type="password" id="setupPassword" minlength="8" autocomplete="new-password" required></label>
+    <p class="err" id="setupErr" hidden></p>
+    <button class="primary" type="submit">Create admin account</button>
+  </form>
+</div>
+
+<div class="wrap" id="appView" hidden>
+  <header class="top">
+    <div class="title">
+      <span class="eyebrow">UAE · B2B team</span>
+      <h1>Weekly meeting minutes</h1>
+    </div>
+    <div class="userbar">
+      <span class="who" id="whoami"></span>
+      <button type="button" class="ghost" id="btnPassword">Change password</button>
+      <button type="button" class="ghost" id="btnLogout">Sign out</button>
+      <button class="primary" id="btnNewMeeting" type="button">+ New meeting minutes</button>
+    </div>
+  </header>
+
+  <div class="banner" id="banner" hidden></div>
+
+  <div class="next" id="next">
+    <div class="cal" aria-hidden="true"><div class="m" id="calM">—</div><div class="d" id="calD">–</div><div class="w" id="calW"></div></div>
+    <div class="info">
+      <span class="eyebrow">Next meeting</span>
+      <strong id="nextLabel">Loading…</strong>
+      <span class="muted" id="nextSub"></span>
+      <div class="stats" id="stats"></div>
+    </div>
+    <div class="acts">
+      <a class="btn" id="gcalSeries" target="_blank" rel="noopener" href="#">Add weekly series to Google Calendar</a>
+      <button type="button" id="btnCopyAgenda">Copy agenda for next meeting</button>
+    </div>
+  </div>
+
+  <nav class="tabs" role="tablist">
+    <button role="tab" aria-selected="true" data-tab="actions" type="button">Action items</button>
+    <button role="tab" aria-selected="false" data-tab="calendar" type="button">Calendar</button>
+    <button role="tab" aria-selected="false" data-tab="meetings" type="button">Meetings</button>
+    <button role="tab" aria-selected="false" data-tab="members" type="button">Members</button>
+    <button role="tab" aria-selected="false" data-tab="settings" type="button">Settings</button>
+  </nav>
+
+  <div id="panel-actions">
+    <div class="toolbar"><div class="filters" id="ownerFilters"></div></div>
+    <div id="actionGroups"></div>
+  </div>
+
+  <div id="panel-calendar" hidden>
+    <div class="calhead">
+      <div class="nav">
+        <button type="button" id="calPrev" aria-label="Previous month">‹</button>
+        <h2 id="calTitle"></h2>
+        <button type="button" id="calNext" aria-label="Next month">›</button>
+        <button type="button" class="ghost" id="calToday">Today</button>
+      </div>
+      <div class="filters toolbar" style="margin:0"><div class="filters" id="calFilters"></div></div>
+    </div>
+    <div class="legend">
+      <span><i style="background:var(--accent)"></i>Meeting with minutes</span>
+      <span><i style="background:var(--accent-soft);border:1px solid var(--accent)"></i>Scheduled meeting</span>
+      <span><i style="background:var(--warn-soft);border:1px solid var(--warn)"></i>Action due</span>
+      <span><i style="background:var(--bad-soft);border:1px solid var(--bad)"></i>Overdue</span>
+      <span><i style="background:var(--ok-soft);border:1px solid var(--ok)"></i>Done</span>
+    </div>
+    <div class="grid" id="calGrid"></div>
+    <div class="agenda list" id="calAgenda"></div>
+  </div>
+
+  <div id="panel-meetings" hidden><div id="meetingList"></div></div>
+
+  <div id="panel-members" hidden>
+    <div class="toolbar">
+      <p class="hint" id="membersHint">Members sign in with their email. Tag them on action items; their emails fill in calendar invites and emailed minutes.</p>
+      <button class="primary" type="button" id="btnAddMember">+ Add member</button>
+    </div>
+    <div id="memberList"></div>
+  </div>
+
+  <div id="panel-settings" hidden>
+    <form id="settingsForm" class="list" style="padding:20px;display:grid;gap:16px">
+      <h2>Meeting schedule</h2>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px">
+        <label>Day of week
+          <select id="setWeekday">
+            <option value="0">Sunday</option><option value="1">Monday</option><option value="2">Tuesday</option><option value="3">Wednesday</option><option value="4">Thursday</option><option value="5">Friday</option><option value="6">Saturday</option>
+          </select>
+        </label>
+        <label>Start time (Dubai)<input id="setTime" type="time" required></label>
+        <label>Length (minutes)<input id="setDuration" type="number" min="15" step="15" required></label>
+      </div>
+      <label>Meeting name<input id="setTitle" required></label>
+      <label>Location or video link<input id="setLocation" placeholder="e.g. Teams link or office meeting room"></label>
+      <p class="hint" id="settingsHint">Team members and their emails are managed on the Members tab.</p>
+      <div style="display:flex;justify-content:flex-end"><button class="primary" type="submit" id="btnSaveSettings">Save settings</button></div>
+    </form>
+  </div>
+</div>
+
+<dialog id="meetingDlg">
+  <form id="meetingForm" method="dialog">
+    <h2 id="meetingDlgTitle">New meeting minutes</h2>
+    <div class="row">
+      <label>Meeting date<input type="date" id="mDate" required></label>
+      <label>Title<input id="mTitle" required></label>
+    </div>
+    <label>Attendees<input id="mAttendees" placeholder="Names, separated by commas"></label>
+    <label>Discussion and decisions<textarea id="mNotes" style="min-height:180px" placeholder="Key points discussed, decisions taken, client updates…"></textarea></label>
+    <p class="hint">Add action items on the meeting card after saving.</p>
+    <div class="foot">
+      <button type="button" class="danger" id="mDelete" hidden>Delete meeting</button>
+      <span style="flex:1"></span>
+      <button type="button" id="mCancel">Cancel</button>
+      <button type="submit" class="primary">Save minutes</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="emailDlg">
+  <form id="emailForm" method="dialog">
+    <h2>Email meeting minutes</h2>
+    <label>To<input id="eTo" placeholder="Emails, separated by commas"></label>
+    <label>Subject<input id="eSubject"></label>
+    <label>Message<textarea id="eBody" style="min-height:260px"></textarea></label>
+    <p class="hint">Opens a ready-to-send email in Outlook or Gmail on the web. Edit anything here first.</p>
+    <div class="foot">
+      <button type="button" id="eCopy">Copy text</button>
+      <span style="flex:1"></span>
+      <button type="button" id="eCancel">Close</button>
+      <a class="btn" id="eGmail" target="_blank" rel="noopener" href="#">Open in Gmail</a>
+      <a class="btn" id="eOutlook" target="_blank" rel="noopener" href="#" style="background:var(--accent);color:var(--accent-fg);border-color:var(--accent)">Open in Outlook</a>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="itemDlg">
+  <form id="itemForm" method="dialog">
+    <h2>Edit action item</h2>
+    <label>Action<input id="iTask" required></label>
+    <div class="row">
+      <label>Due<input type="date" id="iDue" required></label>
+      <label>Status
+        <select id="iStatus"><option value="open">Not started</option><option value="progress">In progress</option><option value="done">Done</option></select>
+      </label>
+    </div>
+    <div style="display:grid;gap:5px"><span style="font-size:13px;font-weight:500;color:var(--muted)">Assigned to</span><div id="iAssignees"></div></div>
+    <label>Progress update<textarea id="iUpdate" style="min-height:90px" placeholder="What happened since the last meeting"></textarea></label>
+    <div class="foot">
+      <button type="button" class="danger" id="iDelete">Delete item</button>
+      <span style="flex:1"></span>
+      <button type="button" id="iCancel">Cancel</button>
+      <button type="submit" class="primary">Save item</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="memberDlg">
+  <form id="memberForm" method="dialog">
+    <h2 id="memberDlgTitle">Add member</h2>
+    <div class="row">
+      <label>Name<input id="pName" required autocomplete="off"></label>
+      <label>Email<input type="email" id="pEmail" required autocomplete="off"></label>
+    </div>
+    <div class="row">
+      <label>Job title (optional)<input id="pTitle" placeholder="e.g. Key Account Manager"></label>
+      <label>Role
+        <select id="pRole"><option value="member">Member</option><option value="admin">Admin</option></select>
+      </label>
+    </div>
+    <div class="row">
+      <label id="pPasswordLabel">Temporary password (8+ characters)<input id="pPassword" minlength="8" autocomplete="new-password"></label>
+      <label id="pActiveRow" style="display:flex;flex-direction:row;gap:8px;align-items:center;color:var(--fg);align-self:end;padding-bottom:10px"><input type="checkbox" id="pActive" style="width:auto"> Can sign in</label>
+    </div>
+    <p class="hint" id="pHint">Their work email is used for calendar invites and emailed minutes. Each person can click "This is me" on their own row to get a My tasks filter.</p>
+    <div class="foot">
+      <button type="button" class="danger" id="pDelete" hidden>Delete member</button>
+      <span style="flex:1"></span>
+      <button type="button" id="pCancel">Cancel</button>
+      <button type="submit" class="primary">Save member</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="pwDlg">
+  <form id="pwForm" method="dialog">
+    <h2>Change password</h2>
+    <label>Current password<input type="password" id="pwCurrent" autocomplete="current-password" required></label>
+    <label>New password (8+ characters)<input type="password" id="pwNext" minlength="8" autocomplete="new-password" required></label>
+    <div class="foot"><button type="button" id="pwCancel">Cancel</button><button type="submit" class="primary">Change password</button></div>
+  </form>
+</dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(() => {
+  const TZ = "Asia/Dubai";
+  const DEFAULTS = { weekday: 1, time: "10:00", duration: 60, title: "UAE B2B Weekly Meeting", location: "", portalUrl: location.origin };
+  const STATUS_LABEL = { open: "Not started", progress: "In progress", done: "Done" };
+  const DAYS = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+  const BYDAY = ["SU","MO","TU","WE","TH","FR","SA"];
+  const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const MONTHS_LONG = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+
+  const state = { lastPick: {}, focusAfter: null, db: null, settings: { ...DEFAULTS }, meetings: [], items: [], members: [], me: null, filter: "all", calFilter: "all", tab: "actions", calMonth: null };
+  const $ = id => document.getElementById(id);
+  const kidsOf = (...k) => k.flat().filter(x => x != null && x !== false);
+
+  // ---------- dates (YYYY-MM-DD in Dubai time) ----------
+  const pad = n => String(n).padStart(2, "0");
+  function todayISO() {
+    try { return new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date()); }
+    catch { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
+  }
+  function nowHHMM() {
+    try { return new Intl.DateTimeFormat("en-GB", { timeZone: TZ, hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date()); }
+    catch { const d = new Date(); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; }
+  }
+  const parse = s => { const [y, m, d] = s.split("-").map(Number); return new Date(Date.UTC(y, m - 1, d)); };
+  const iso = d => `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())}`;
+  const addDays = (s, n) => { const d = parse(s); d.setUTCDate(d.getUTCDate() + n); return iso(d); };
+  const dow = s => parse(s).getUTCDay();
+  const diffDays = (a, b) => Math.round((parse(b) - parse(a)) / 86400000);
+  const fmt = s => { if (!s) return ""; const d = parse(s); return `${DAYS[d.getUTCDay()].slice(0,3)} ${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`; };
+  const fmtLong = s => { const d = parse(s); return `${DAYS[d.getUTCDay()]}, ${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`; };
+
+  function nextWeekdayAfter(s) { const wd = +state.settings.weekday; let n = (wd - dow(s) + 7) % 7; if (n === 0) n = 7; return addDays(s, n); }
+  function endTime() { const [h, m] = state.settings.time.split(":").map(Number); const tot = h * 60 + m + (+state.settings.duration || 60); return `${pad(Math.floor(tot / 60) % 24)}:${pad(tot % 60)}`; }
+  function nextMeetingDate() {
+    const t = todayISO(), n = (+state.settings.weekday - dow(t) + 7) % 7;
+    let rec = addDays(t, n);
+    if (n === 0 && nowHHMM() >= endTime()) rec = addDays(t, 7);
+    const future = state.meetings.map(m => m.date).filter(d => d > t || (d === t && nowHHMM() < endTime())).sort()[0];
+    return future && future < rec ? future : rec;
+  }
+  const lastMeeting = () => state.meetings.filter(m => m.date <= todayISO()).sort((a, b) => b.date.localeCompare(a.date))[0];
+
+  // ---------- members and assignees ----------
+  const memberById = id => state.members.find(m => m.id === id);
+  const memberByName = n => state.members.find(m => m.name.toLowerCase() === String(n || "").trim().toLowerCase());
+  const sortedMembers = () => [...state.members].sort((a, b) => a.name.localeCompare(b.name));
+  const activeMembers = () => sortedMembers().filter(m => m.active);
+  const allEmails = () => activeMembers().map(m => m.email).filter(Boolean);
+  const initials = n => String(n || "?").split(/\s+/).filter(Boolean).map(w => w[0]).join("").slice(0, 2).toUpperCase();
+  // the signed-in member
+  const me = () => state.me ? state.members.find(m => m.id === state.me.id) || null : null;
+  // People on an item: tagged members, or (older items) the owner name typed as text
+  function assigneesOf(it) {
+    const ids = Array.isArray(it.assignees) ? it.assignees : [];
+    const list = ids.map(memberById).filter(Boolean);
+    if (list.length) return list;
+    if (it.owner) return String(it.owner).split(",").map(s => s.trim()).filter(Boolean).map(n => memberByName(n) || { id: null, name: n, email: "" });
+    return [];
+  }
+  const ownerText = it => assigneesOf(it).map(a => a.name).join(", ") || "Unassigned";
+  const isAssigned = (it, key) => assigneesOf(it).some(a => (a.id || "name:" + a.name) === key);
+
+  // ---------- Google Calendar links ----------
+  function gcalTimed(dateISO, title, details, recur, guests) {
+    const [h, m] = state.settings.time.split(":"), [eh, em] = endTime().split(":"), day = dateISO.replace(/-/g, "");
+    const p = new URLSearchParams({ action: "TEMPLATE", text: title, dates: `${day}T${h}${m}00/${day}T${eh}${em}00`, ctz: TZ, details: details || "" });
+    if (state.settings.location) p.set("location", state.settings.location);
+    if (recur) p.set("recur", recur);
+    if (guests && guests.length) p.set("add", guests.join(","));
+    return "https://calendar.google.com/calendar/render?" + p.toString();
+  }
+  function gcalAllDay(dateISO, title, details, guests) {
+    const p = new URLSearchParams({ action: "TEMPLATE", text: title, dates: `${dateISO.replace(/-/g, "")}/${addDays(dateISO, 1).replace(/-/g, "")}`, details: details || "" });
+    if (guests && guests.length) p.set("add", guests.join(","));
+    return "https://calendar.google.com/calendar/render?" + p.toString();
+  }
+
+  // ---------- derived ----------
+  const meetingById = id => state.meetings.find(m => m.id === id);
+  function carriedCount(it) {
+    const origin = meetingById(it.meetingId); if (!origin) return 0;
+    const done = it.status === "done", until = done && it.doneAt ? it.doneAt : todayISO();
+    return state.meetings.filter(m => m.date > origin.date && (done ? m.date < until : m.date <= until)).length;
+  }
+  const isOverdue = it => it.status !== "done" && it.due && it.due < todayISO();
+
+  // ---------- DOM helpers ----------
+  const el = (tag, attrs = {}, ...kids) => {
+    const n = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) {
+      if (v == null || v === false) continue;
+      if (k === "class") n.className = v; else if (k.startsWith("on")) n.addEventListener(k.slice(2), v); else n.setAttribute(k, v === true ? "" : v);
+    }
+    for (const c of kids.flat()) if (c != null && c !== false) n.append(c.nodeType ? c : document.createTextNode(String(c)));
+    return n;
+  };
+  const CHECK_SVG = '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+  const tagEl = a => el("span", { class: "tag" + (!a.id ? " legacy" : "") + (me() && a.id === me().id ? " me" : ""), title: a.email || (a.id ? "" : "Not linked to a member yet") }, el("span", { class: "ini", "aria-hidden": "true" }, initials(a.name)), a.name);
+
+  // Multi-select member picker. Returns { node, get() }.
+  function tagPicker(id, selected, onChange) {
+    let sel = new Set(selected || []);
+    const summary = el("summary", { id });
+    const menu = el("div", { class: "menu" });
+    const node = el("details", { class: "tagpick" }, summary, menu);
+    const paint = () => {
+      const chosen = sortedMembers().filter(m => sel.has(m.id));
+      summary.replaceChildren(...kidsOf(...(chosen.length ? chosen.map(tagEl) : ["Assign members…"])));
+    };
+    const ms = sortedMembers().filter(m => m.active || sel.has(m.id));
+    menu.replaceChildren(...kidsOf(...(ms.length ? ms.map(m => el("label", {},
+      el("input", { type: "checkbox", checked: sel.has(m.id) || null, onchange: e => { e.target.checked ? sel.add(m.id) : sel.delete(m.id); paint(); if (onChange) onChange([...sel]); } }),
+      m.name, el("span", { class: "sub" }, m.title || ""))) : [el("div", { class: "none" }, "No members yet. An admin adds them on the Members tab.")])));
+    paint();
+    return { node, get: () => [...sel].filter(memberById) };
+  }
+  document.addEventListener("click", e => document.querySelectorAll("details.tagpick[open]").forEach(d => { if (!d.contains(e.target)) d.open = false; }));
+
+  // ---------- rendering ----------
+  function itemRow(it, opts = {}) {
+    const done = it.status === "done";
+    const check = el("button", { class: "check", type: "button", "aria-label": done ? "Mark not done" : "Mark done", title: done ? "Mark not done" : "Mark done", onclick: () => setStatus(it, done ? "open" : "done"), disabled: !state.db || null });
+    check.innerHTML = CHECK_SVG;
+    const pills = [isOverdue(it) ? el("span", { class: "pill overdue" }, "Overdue") : el("span", { class: "pill " + it.status }, STATUS_LABEL[it.status] || it.status)];
+    const cc = carriedCount(it);
+    if (cc > 0 && !done) pills.push(el("span", { class: "pill carry", title: "Still open after this many later meetings" }, `Carried ×${cc}`));
+    const origin = meetingById(it.meetingId), people = assigneesOf(it);
+    const meta = el("div", { class: "meta" },
+      people.length ? el("span", { class: "tags" }, people.map(tagEl)) : el("span", { class: "owner" }, "Unassigned"),
+      el("span", { class: "mono" }, done && it.doneAt ? `Done ${fmt(it.doneAt)}` : `Due ${fmt(it.due)}`),
+      opts.showOrigin && origin ? el("span", {}, `From ${fmt(origin.date)}`) : null, ...pills);
+    const sel = el("select", { class: "status", "aria-label": "Status", onchange: e => setStatus(it, e.target.value), disabled: !state.db || null },
+      ...Object.entries(STATUS_LABEL).map(([v, l]) => el("option", { value: v, selected: it.status === v || null }, l)));
+    const side = el("div", { class: "side" }, sel,
+      !done && it.due ? el("a", { class: "btn ghost", target: "_blank", rel: "noopener", title: "Add a due-date reminder to Google Calendar, inviting the assigned members",
+        href: gcalAllDay(it.due, `Due: ${it.task}`, `Action item for ${ownerText(it)} from the ${origin ? fmt(origin.date) : ""} B2B weekly meeting.`, people.map(p => p.email).filter(Boolean)) }, "Remind") : null,
+      el("button", { class: "ghost", type: "button", onclick: () => openItem(it), disabled: !state.db || null }, "Edit"));
+    return el("div", { class: "item" + (done ? " done" : "") }, check,
+      el("div", { class: "body" }, el("div", { class: "task" }, it.task), meta, it.update ? el("div", { class: "upd" }, it.update) : null), side);
+  }
+
+  function renderHeader() {
+    const m = me();
+    $("whoami").textContent = state.me ? `${state.me.name} · ${state.me.email}` : "";
+    $("btnNewMeeting").disabled = !state.db;
+  }
+
+  function renderNext() {
+    const nd = nextMeetingDate(), t = todayISO(), d = parse(nd), days = diffDays(t, nd);
+    $("calM").textContent = MONTHS[d.getUTCMonth()]; $("calD").textContent = d.getUTCDate(); $("calW").textContent = DAYS[d.getUTCDay()].slice(0, 3);
+    $("nextLabel").textContent = fmtLong(nd);
+    $("nextSub").textContent = `${state.settings.time}–${endTime()} Dubai · ${days === 0 ? "today" : days === 1 ? "tomorrow" : `in ${days} days`}${state.settings.location ? " · " + state.settings.location : ""}`;
+    const open = state.items.filter(i => i.status !== "done"), lm = lastMeeting();
+    const overdue = open.filter(isOverdue).length, dueNext = open.filter(i => !isOverdue(i) && i.due <= nd).length;
+    const closed = state.items.filter(i => i.status === "done" && i.doneAt && (!lm || i.doneAt >= lm.date)).length;
+    $("stats").replaceChildren(...kidsOf(
+      el("span", { class: "chip" }, `${open.length} open`),
+      overdue ? el("span", { class: "chip bad" }, `${overdue} overdue`) : null,
+      el("span", { class: "chip warn" }, `${dueNext} due by this meeting`),
+      el("span", { class: "chip ok" }, `${closed} done since last meeting`)));
+    $("gcalSeries").href = gcalTimed(nd, state.settings.title, `Weekly UAE B2B team meeting. Minutes and action items: ${state.settings.portalUrl || ""}`, `RRULE:FREQ=WEEKLY;BYDAY=${BYDAY[+state.settings.weekday]}`, allEmails());
+  }
+
+  // filter chips shared by the action list and the calendar
+  function peopleFilters(boxId, key, onPick) {
+    const seen = new Map();
+    state.items.filter(i => i.status !== "done").forEach(i => assigneesOf(i).forEach(a => seen.set(a.id || "name:" + a.name, a.name)));
+    const mine = me();
+    if (state[key] !== "all" && state[key] !== "me" && !seen.has(state[key])) state[key] = "all";
+    const mk = (v, l) => el("button", { type: "button", "aria-pressed": String(state[key] === v), onclick: () => { state[key] = v; onPick(); } }, l);
+    $(boxId).replaceChildren(...kidsOf(mk("all", "Everyone"), mine ? mk("me", "My tasks") : null,
+      ...[...seen.entries()].filter(([k]) => !mine || k !== mine.id).sort((a, b) => a[1].localeCompare(b[1])).map(([k, n]) => mk(k, n))));
+  }
+  const passes = (it, f) => f === "all" || (f === "me" ? !!me() && isAssigned(it, me().id) : isAssigned(it, f));
+
+  function renderActions() {
+    peopleFilters("ownerFilters", "filter", renderActions);
+    const box = $("actionGroups");
+    if (!state.items.length) {
+      box.replaceChildren(...kidsOf(el("div", { class: "empty" }, el("h2", {}, "No action items yet"),
+        el("p", {}, "Record a meeting, then add the actions agreed in it and tag the members responsible. Open items show up here until they are marked done."),
+        el("button", { class: "primary", type: "button", onclick: () => openMeeting(), disabled: !state.db || null }, "+ New meeting minutes"))));
+      return;
+    }
+    const nd = nextMeetingDate(), lm = lastMeeting(), f = i => passes(i, state.filter);
+    const byDue = (a, b) => (a.due || "").localeCompare(b.due || "") || ownerText(a).localeCompare(ownerText(b));
+    const open = state.items.filter(i => i.status !== "done" && f(i)).sort(byDue);
+    const groups = [
+      ["Overdue", "Past their due date and still open", open.filter(isOverdue)],
+      [`Due by next meeting (${fmt(nd)})`, "Should be done before the team meets", open.filter(i => !isOverdue(i) && i.due <= nd)],
+      ["Later", "Due after the next meeting", open.filter(i => !isOverdue(i) && i.due > nd)],
+      [lm ? `Completed since last meeting (${fmt(lm.date)})` : "Completed", "Closed items to confirm in the meeting",
+        state.items.filter(i => i.status === "done" && f(i) && (!lm || (i.doneAt && i.doneAt >= lm.date))).sort((a, b) => (b.doneAt || "").localeCompare(a.doneAt || ""))]
+    ];
+    const out = groups.filter(g => g[2].length).map(([h, sub, list]) => el("section", { class: "group" },
+      el("header", {}, el("h2", {}, h), el("span", { class: "count" }, `${list.length} · ${sub}`)),
+      el("div", { class: "list" }, list.map(it => itemRow(it, { showOrigin: true })))));
+    if (!out.length) out.push(el("div", { class: "empty" }, el("h2", {}, "All clear"), el("p", {}, "Nothing open for this filter.")));
+    box.replaceChildren(...kidsOf(...out));
+  }
+
+  function renderMeetings() {
+    const box = $("meetingList");
+    if (!state.meetings.length) {
+      box.replaceChildren(...kidsOf(el("div", { class: "empty" }, el("h2", {}, "No meetings recorded yet"),
+        el("p", {}, "Each weekly meeting gets a card with its attendees, discussion notes and the action items agreed. Start with today's or the most recent meeting."),
+        el("button", { class: "primary", type: "button", onclick: () => openMeeting(), disabled: !state.db || null }, "+ New meeting minutes"))));
+      return;
+    }
+    const ms = [...state.meetings].sort((a, b) => b.date.localeCompare(a.date));
+    box.replaceChildren(...kidsOf(...ms.map(m => {
+      const items = state.items.filter(i => i.meetingId === m.id).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+      const doneN = items.filter(i => i.status === "done").length;
+      const picker = tagPicker(`add-who-${m.id}`, state.lastPick[m.id] || [], ids => { state.lastPick[m.id] = ids; });
+      const form = el("form", { class: "addrow", onsubmit: e => { e.preventDefault(); addItem(m, e.target, picker); } },
+        el("input", { name: "task", placeholder: "New action item…", required: true, "aria-label": "Action", id: `add-task-${m.id}` }),
+        picker.node,
+        el("input", { name: "due", type: "date", value: nextWeekdayAfter(m.date), required: true, "aria-label": "Due date", id: `add-due-${m.id}` }),
+        el("button", { type: "submit", class: "primary", disabled: !state.db || null }, "Add"));
+      return el("article", { class: "meeting", id: "meeting-" + m.id },
+        el("div", { class: "mh" },
+          el("div", { class: "mt" },
+            el("span", { class: "eyebrow mono" }, fmtLong(m.date)),
+            el("h2", {}, m.title || state.settings.title),
+            el("span", { class: "muted", style: "font-size:13px" }, [m.attendees ? `Attendees: ${m.attendees}` : null, items.length ? `${doneN}/${items.length} actions done` : "No actions yet"].filter(Boolean).join(" · "))),
+          el("div", { class: "ma" },
+            el("button", { class: "ghost", type: "button", onclick: () => openEmail(m) }, "Email minutes"),
+            el("button", { class: "ghost", type: "button", onclick: () => copyMinutes(m) }, "Copy minutes"),
+            el("a", { class: "btn ghost", target: "_blank", rel: "noopener", href: gcalTimed(m.date, m.title || state.settings.title, (m.notes || "").slice(0, 1500), null, allEmails()) }, "Google Calendar"),
+            el("button", { class: "ghost", type: "button", onclick: () => openMeeting(m), disabled: !state.db || null }, "Edit minutes"))),
+        el("div", { class: "notes" }, m.notes || ""),
+        el("div", { class: "items" }, items.map(it => itemRow(it))),
+        form);
+    })));
+  }
+
+  function renderMembers() {
+    $("btnAddMember").hidden = !isAdmin();
+    const box = $("memberList"), ms = sortedMembers();
+    if (!ms.length) {
+      box.replaceChildren(...kidsOf(el("div", { class: "empty" }, el("h2", {}, "No members yet"),
+        el("p", {}, "Add each person on the B2B team with their email. You can then tag them on action items, filter by person and see who owns what."))));
+      return;
+    }
+    const legacy = [...new Set(state.items.flatMap(i => assigneesOf(i).filter(a => !a.id).map(a => a.name)))];
+    box.replaceChildren(...kidsOf(
+      el("div", { class: "list people" }, ms.map(m => {
+        const mine = state.items.filter(i => isAssigned(i, m.id));
+        const open = mine.filter(i => i.status !== "done"), od = open.filter(isOverdue).length;
+        return el("div", { class: "item" },
+          el("div", { class: "avatar", "aria-hidden": "true" }, initials(m.name)),
+          el("div", { class: "body" },
+            el("div", { class: "task" }, m.name, me() && me().id === m.id ? " (you)" : ""),
+            el("div", { class: "meta" }, el("span", { class: "mono" }, m.email || "No email"), m.title ? el("span", {}, m.title) : null,
+              m.role === "admin" ? el("span", { class: "pill admin" }, "Admin") : null,
+              !m.active ? el("span", { class: "pill inactive" }, "Can't sign in") : null,
+              el("span", {}, `${open.length} open`), od ? el("span", { class: "pill overdue" }, `${od} overdue`) : null)),
+          el("div", { class: "side" },
+            el("button", { class: "ghost", type: "button", onclick: () => { state.filter = m.id; setTab("actions"); } }, "View tasks"),
+            m.email ? el("button", { class: "ghost", type: "button", onclick: () => copyText(m.email, "Email copied") }, "Copy email") : null,
+            isAdmin() ? el("button", { class: "ghost", type: "button", onclick: () => openMember(m) }, "Edit") : null));
+      })),
+      legacy.length ? el("p", { class: "hint", style: "margin-top:12px" }, `Older items name ${legacy.join(", ")} as owner. Add ${legacy.length === 1 ? "this person" : "them"} as a member with the same name and those items link up automatically.`) : null));
+  }
+
+  // ---------- calendar ----------
+  function calEvents(dateISO) {
+    const evs = [], wd = +state.settings.weekday, t = todayISO();
+    const recorded = state.meetings.filter(m => m.date === dateISO);
+    recorded.forEach(m => evs.push({ cls: "ev meet", text: `${state.settings.time} Meeting minutes`, title: `${m.title || state.settings.title}: open the minutes`, go: () => { setTab("meetings"); requestAnimationFrame(() => { const n = $("meeting-" + m.id); if (n) n.scrollIntoView({ behavior: "smooth", block: "start" }); }); } }));
+    if (!recorded.length && dow(dateISO) === wd) {
+      const past = dateISO < t;
+      evs.push({ cls: "ev slot" + (past ? " missed" : ""), text: `${state.settings.time} ${past ? "No minutes" : "Weekly meeting"}`, title: past ? "Record minutes for this date" : "Scheduled weekly meeting. Click to start the minutes", go: () => openMeeting(null, dateISO) });
+    }
+    state.items.filter(i => i.due === dateISO && passes(i, state.calFilter)).forEach(i => {
+      const cls = i.status === "done" ? "done" : isOverdue(i) ? "overdue" : "due";
+      evs.push({ cls: "ev " + cls, text: `${i.task} · ${ownerText(i)}`, title: `${i.task}\n${ownerText(i)} · ${STATUS_LABEL[i.status]}`, go: () => openItem(i) });
+    });
+    return evs;
+  }
+  const evBtn = e => el("button", { type: "button", class: e.cls, title: e.title, onclick: e.go }, e.text);
+
+  function renderCalendar() {
+    peopleFilters("calFilters", "calFilter", renderCalendar);
+    const t = todayISO();
+    if (!state.calMonth) state.calMonth = t.slice(0, 7);
+    const [y, mo] = state.calMonth.split("-").map(Number);
+    $("calTitle").textContent = `${MONTHS_LONG[mo - 1]} ${y}`;
+    const first = `${y}-${pad(mo)}-01`;
+    const start = addDays(first, -((dow(first) + 6) % 7));               // weeks start on Monday
+    const last = iso(new Date(Date.UTC(y, mo, 0)));
+    const end = addDays(last, 6 - ((dow(last) + 6) % 7));
+    const heads = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map(d => el("div", { class: "dh" }, d));
+    const cells = [], agenda = [];
+    for (let d = start; d <= end; d = addDays(d, 1)) {
+      const evs = calEvents(d), inMonth = d.slice(0, 7) === state.calMonth;
+      cells.push(el("div", { class: "day" + (inMonth ? "" : " out") + (d === t ? " today" : "") },
+        el("span", { class: "dn" }, String(+d.slice(8))), evs.map(evBtn)));
+      if (inMonth && evs.length) agenda.push(el("div", { class: "aday" + (d === t ? " today" : "") },
+        el("div", { class: "adate" }, el("b", {}, String(+d.slice(8))), DAYS[dow(d)].slice(0, 3)), el("div", { class: "evs" }, evs.map(evBtn))));
+    }
+    $("calGrid").replaceChildren(...kidsOf(...heads, ...cells));
+    $("calAgenda").replaceChildren(...kidsOf(...(agenda.length ? agenda : [el("div", { class: "aday" }, el("div"), el("div", { class: "muted" }, "Nothing scheduled this month."))])));
+  }
+  const shiftMonth = n => { const [y, m] = state.calMonth.split("-").map(Number); const d = new Date(Date.UTC(y, m - 1 + n, 1)); state.calMonth = iso(d).slice(0, 7); renderCalendar(); };
+  $("calPrev").addEventListener("click", () => shiftMonth(-1));
+  $("calNext").addEventListener("click", () => shiftMonth(1));
+  $("calToday").addEventListener("click", () => { state.calMonth = todayISO().slice(0, 7); renderCalendar(); });
+
+  function renderSettingsForm() {
+    const s = state.settings;
+    $("setWeekday").value = String(s.weekday); $("setTime").value = s.time; $("setDuration").value = s.duration;
+    $("setTitle").value = s.title; $("setLocation").value = s.location || "";
+    const ro = !isAdmin();
+    $("btnSaveSettings").hidden = ro;
+    $("settingsHint").textContent = ro ? "Only an admin can change these settings." : "Team members and their emails are managed on the Members tab.";
+    $("settingsForm").querySelectorAll("input,select").forEach(i => i.disabled = ro);
+  }
+
+  function render() {
+    renderHeader();
+    renderNext();
+    if (document.querySelector("details.tagpick[open]")) return;   // don't close a picker someone is using
+    if (state.tab === "actions") renderActions();
+    if (state.tab === "calendar") renderCalendar();
+    if (state.tab === "meetings") renderMeetings();
+    if (state.tab === "members") renderMembers();
+    if (state.focusAfter && $(state.focusAfter)) { $(state.focusAfter).focus(); state.focusAfter = null; }
+  }
+
+  const TABS = ["actions", "calendar", "meetings", "members", "settings"];
+  function setTab(t) {
+    state.tab = t;
+    document.querySelectorAll("nav.tabs button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.tab === t)));
+    for (const p of TABS) $("panel-" + p).hidden = p !== t;
+    try { localStorage.setItem("mom-tab", t); } catch {}
+    if (t === "settings") renderSettingsForm();
+    render();
+  }
+  document.querySelectorAll("nav.tabs button").forEach(b => b.addEventListener("click", () => setTab(b.dataset.tab)));
+
+  // ---------- toast / copy ----------
+  let toastT;
+  function toast(msg) { const t = $("toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("show"), 2400); }
+  async function copyText(text, okMsg) {
+    try { await navigator.clipboard.writeText(text); toast(okMsg); }
+    catch {
+      const ta = el("textarea", { style: "position:fixed;left:-9999px" }); ta.value = text; document.body.append(ta); ta.select();
+      let ok = false; try { ok = document.execCommand("copy"); } catch {}
+      ta.remove(); toast(ok ? okMsg : "Copy was blocked. Select the text manually.");
+    }
+  }
+
+  // ---------- email minutes ----------
+  function emailBody(m, noteLimit) {
+    const items = state.items.filter(i => i.meetingId === m.id);
+    const open = state.items.filter(i => i.status !== "done" && i.meetingId !== m.id && (meetingById(i.meetingId) || {}).date < m.date);
+    let notes = m.notes || "";
+    if (noteLimit && notes.length > noteLimit) notes = notes.slice(0, noteLimit).trimEnd() + "…\n(Full notes are in the portal.)";
+    const L = ["Hi team,", "", `Please find the minutes of the ${m.title || state.settings.title} held on ${fmtLong(m.date)}.`];
+    if (m.attendees) L.push("", `Attendees: ${m.attendees}`);
+    if (notes) L.push("", "DISCUSSION AND DECISIONS", notes);
+    L.push("", "ACTION ITEMS");
+    if (!items.length) L.push("No new action items.");
+    items.forEach((i, n) => L.push(`${n + 1}. ${i.task}`, `   Owner: ${ownerText(i)} | Due: ${fmt(i.due)} | Status: ${STATUS_LABEL[i.status]}`));
+    if (open.length) { L.push("", "STILL OPEN FROM EARLIER MEETINGS"); open.forEach(i => L.push(`- ${i.task} | ${ownerText(i)} | due ${fmt(i.due)}${isOverdue(i) ? " (overdue)" : ""}`)); }
+    L.push("", `Please update your items before the next meeting on ${fmtLong(nextWeekdayAfter(m.date))}.`);
+    if (state.settings.portalUrl) L.push("", `View and update the action items here: ${state.settings.portalUrl}`);
+    L.push("", "Thanks");
+    return L.join("\n");
+  }
+  function refreshEmailLinks() {
+    const to = $("eTo").value.split(/[,;\s]+/).filter(Boolean), su = $("eSubject").value, body = $("eBody").value;
+    const q = o => Object.entries(o).map(([k, v]) => k + "=" + encodeURIComponent(v)).join("&");  // %20, not "+", for spaces
+    $("eOutlook").href = "https://outlook.office.com/mail/deeplink/compose?" + q({ to: to.join(";"), subject: su, body });
+    $("eGmail").href = "https://mail.google.com/mail/?" + q({ view: "cm", fs: "1", to: to.join(","), su, body });
+  }
+  function openEmail(m) {
+    $("eTo").value = allEmails().join(", ");
+    $("eSubject").value = `MoM: ${m.title || state.settings.title} | ${fmtLong(m.date)}`;
+    let body = emailBody(m);
+    if (body.length > 5000) body = emailBody(m, 1500);  // keep compose links within URL limits
+    $("eBody").value = body;
+    refreshEmailLinks();
+    $("emailDlg").showModal();
+  }
+  ["eTo", "eSubject", "eBody"].forEach(id => $(id).addEventListener("input", refreshEmailLinks));
+  $("eCancel").addEventListener("click", () => $("emailDlg").close());
+  $("eCopy").addEventListener("click", () => copyText(`Subject: ${$("eSubject").value}\n\n${$("eBody").value}`, "Email text copied"));
+
+  function copyMinutes(m) {
+    const items = state.items.filter(i => i.meetingId === m.id);
+    const lines = [`${m.title || state.settings.title} | ${fmtLong(m.date)}`];
+    if (m.attendees) lines.push(`Attendees: ${m.attendees}`);
+    if (m.notes) lines.push("", "Discussion:", m.notes);
+    if (items.length) { lines.push("", "Action items:"); items.forEach((i, n) => lines.push(`${n + 1}. ${i.task} | ${ownerText(i)} | due ${fmt(i.due)} | ${STATUS_LABEL[i.status]}`)); }
+    copyText(lines.join("\n"), "Minutes copied");
+  }
+  $("btnCopyAgenda").addEventListener("click", () => {
+    const nd = nextMeetingDate(), lm = lastMeeting();
+    const open = state.items.filter(i => i.status !== "done").sort((a, b) => ownerText(a).localeCompare(ownerText(b)) || (a.due || "").localeCompare(b.due || ""));
+    const done = state.items.filter(i => i.status === "done" && (!lm || (i.doneAt && i.doneAt >= lm.date)));
+    const lines = [`${state.settings.title} | ${fmtLong(nd)} ${state.settings.time} Dubai`, "", "Action items review:"];
+    if (!open.length) lines.push("No open items.");
+    open.forEach(i => { const c = carriedCount(i); lines.push(`- ${i.task} | ${ownerText(i)} | due ${fmt(i.due)} | ${isOverdue(i) ? "OVERDUE" : STATUS_LABEL[i.status]}${c ? ` | carried ×${c}` : ""}`); });
+    if (done.length) { lines.push("", "Completed since last meeting:"); done.forEach(i => lines.push(`- ${i.task} | ${ownerText(i)}`)); }
+    copyText(lines.join("\n"), "Agenda copied");
+  });
+
+  // ---------- API ----------
+  async function api(method, path, body) {
+    const res = await fetch("/api/" + path, { method, headers: body ? { "content-type": "application/json" } : {}, body: body ? JSON.stringify(body) : undefined, credentials: "same-origin" });
+    const data = await res.json().catch(() => ({}));
+    if (res.status === 401 && path !== "login" && path !== "password") { showAuth(); throw new Error(data.error || "Please sign in."); }
+    if (!res.ok) throw new Error(data.error || "Request failed.");
+    return data;
+  }
+  async function load() {
+    const d = await api("GET", "state");
+    Object.assign(state, { me: d.user, settings: { ...DEFAULTS, ...d.settings }, members: d.users, meetings: d.meetings, items: d.items, db: true });
+    $("banner").hidden = true;
+    render();
+  }
+  // run a write, then refresh; shows the server's message on failure
+  async function guard(fn, okMsg) {
+    try { await fn(); if (okMsg) toast(okMsg); await load(); return true; }
+    catch (e) { toast(e.message || "Couldn't save. Check your connection and try again."); return false; }
+  }
+  const isAdmin = () => !!state.me && state.me.role === "admin";
+
+  // ---------- writes ----------
+  function setStatus(it, status) {
+    if (it.status === status) return;
+    guard(() => api("PATCH", "items/" + it.id, { status }), status === "done" ? "Marked done" : "Status updated");
+  }
+  async function addItem(m, form, picker) {
+    const fd = new FormData(form);
+    const task = String(fd.get("task") || "").trim(), due = String(fd.get("due") || ""), assignees = picker.get();
+    if (!task || !due) return;
+    if (!assignees.length) { toast("Tag at least one member."); picker.node.open = true; return; }
+    state.focusAfter = `add-task-${m.id}`;
+    const ok = await guard(() => api("POST", "items", { meetingId: m.id, task, assignees, due }), "Action item added");
+    if (!ok) state.focusAfter = null;
+  }
+  function arm(btn, label, action) {
+    btn.classList.remove("armed"); btn.textContent = label; btn.dataset.armed = "";
+    btn.onclick = () => { if (btn.dataset.armed) { action(); return; } btn.dataset.armed = "1"; btn.classList.add("armed"); btn.textContent = "Click again to delete"; };
+  }
+
+  // meeting dialog
+  let editingMeeting = null;
+  function openMeeting(m, dateISO) {
+    if (!state.db) return;
+    editingMeeting = m || null;
+    $("meetingDlgTitle").textContent = m ? "Edit meeting minutes" : "New meeting minutes";
+    const t = todayISO(), defDate = addDays(t, -((dow(t) - +state.settings.weekday + 7) % 7));
+    $("mDate").value = m ? m.date : (dateISO || (state.meetings.some(x => x.date === defDate) ? t : defDate));
+    $("mTitle").value = m ? (m.title || state.settings.title) : state.settings.title;
+    $("mAttendees").value = m ? (m.attendees || "") : sortedMembers().filter(x => x.active).map(x => x.name).join(", ");
+    $("mNotes").value = m ? (m.notes || "") : "";
+    $("mDelete").hidden = !(m && isAdmin());
+    if (m) arm($("mDelete"), "Delete meeting", async () => { if (await guard(() => api("DELETE", "meetings/" + m.id), "Meeting deleted")) $("meetingDlg").close(); });
+    $("meetingDlg").showModal();
+  }
+  $("mCancel").addEventListener("click", () => $("meetingDlg").close());
+  $("meetingForm").addEventListener("submit", async e => {
+    e.preventDefault();
+    const data = { date: $("mDate").value, title: $("mTitle").value.trim(), attendees: $("mAttendees").value.trim(), notes: $("mNotes").value.trim() };
+    if (!data.date || !data.title) return;
+    const m = editingMeeting;
+    const ok = await guard(() => m ? api("PUT", "meetings/" + m.id, data) : api("POST", "meetings", data), m ? "Minutes saved" : "Meeting created");
+    if (ok) { $("meetingDlg").close(); if (!m) setTab("meetings"); }
+  });
+  $("btnNewMeeting").addEventListener("click", () => openMeeting());
+
+  // item dialog
+  let editingItem = null, itemPicker = null;
+  function openItem(it) {
+    if (!state.db) return;
+    editingItem = it;
+    $("iTask").value = it.task; $("iDue").value = it.due || ""; $("iStatus").value = it.status; $("iUpdate").value = it.update || "";
+    itemPicker = tagPicker("iWho", assigneesOf(it).map(a => a.id).filter(Boolean));
+    $("iAssignees").replaceChildren(...kidsOf(itemPicker.node));
+    arm($("iDelete"), "Delete item", async () => { if (await guard(() => api("DELETE", "items/" + it.id), "Item deleted")) $("itemDlg").close(); });
+    $("itemDlg").showModal();
+  }
+  $("iCancel").addEventListener("click", () => $("itemDlg").close());
+  $("itemForm").addEventListener("submit", async e => {
+    e.preventDefault();
+    const it = editingItem; if (!it) return;
+    const assignees = itemPicker.get();
+    if (!assignees.length) { toast("Tag at least one member."); itemPicker.node.open = true; return; }
+    const data = { task: $("iTask").value.trim(), due: $("iDue").value, status: $("iStatus").value, update: $("iUpdate").value.trim(), assignees };
+    if (await guard(() => api("PATCH", "items/" + it.id, data), "Item saved")) $("itemDlg").close();
+  });
+
+  // member dialog (admins manage accounts)
+  let editingMember = null;
+  function openMember(m) {
+    if (!state.db || !isAdmin()) return;
+    editingMember = m || null;
+    $("memberDlgTitle").textContent = m ? "Edit member" : "Add member";
+    const src = m || {};
+    $("pName").value = src.name || ""; $("pEmail").value = src.email || ""; $("pTitle").value = src.title || ""; $("pRole").value = src.role || "member";
+    $("pPassword").value = ""; $("pPassword").required = !m;
+    $("pPasswordLabel").firstChild.textContent = m ? "Reset password (leave blank to keep)" : "Temporary password (8+ characters)";
+    $("pActiveRow").hidden = !m; $("pActive").checked = m ? m.active : true;
+    $("pHint").textContent = m ? "Resetting the password or deactivating the account signs the member out." : "Send the member their email and temporary password. They can change it after signing in.";
+    $("pDelete").hidden = !m || m.id === state.me.id;
+    if (m) arm($("pDelete"), "Delete member", async () => { if (await guard(() => api("DELETE", "users/" + m.id), "Member deleted")) $("memberDlg").close(); });
+    $("memberDlg").showModal();
+  }
+  $("btnAddMember").addEventListener("click", () => openMember());
+  $("pCancel").addEventListener("click", () => $("memberDlg").close());
+  $("memberForm").addEventListener("submit", async e => {
+    e.preventDefault();
+    const m = editingMember;
+    const data = { name: $("pName").value.trim(), email: $("pEmail").value.trim().toLowerCase(), title: $("pTitle").value.trim(), role: $("pRole").value };
+    if ($("pPassword").value) data.password = $("pPassword").value;
+    if (m) data.active = $("pActive").checked;
+    if (await guard(() => m ? api("PUT", "users/" + m.id, data) : api("POST", "users", data), m ? "Member saved" : "Member added")) $("memberDlg").close();
+  });
+
+  // password dialog
+  $("btnPassword").addEventListener("click", () => { $("pwForm").reset(); $("pwDlg").showModal(); });
+  $("pwCancel").addEventListener("click", () => $("pwDlg").close());
+  $("pwForm").addEventListener("submit", async e => {
+    e.preventDefault();
+    try { await api("POST", "password", { current: $("pwCurrent").value, next: $("pwNext").value }); toast("Password changed"); $("pwDlg").close(); }
+    catch (err) { toast(err.message); }
+  });
+
+  // settings (admin)
+  $("settingsForm").addEventListener("submit", e => {
+    e.preventDefault();
+    const data = { weekday: +$("setWeekday").value, time: $("setTime").value || "10:00", duration: Math.max(15, +$("setDuration").value || 60), title: $("setTitle").value.trim() || DEFAULTS.title, location: $("setLocation").value.trim() };
+    guard(() => api("PUT", "settings", data), "Settings saved");
+  });
+
+  // ---------- sign-in ----------
+  function showErr(id, msg) { const e = $(id); e.textContent = msg || ""; e.hidden = !msg; }
+  async function showAuth() {
+    state.me = null; state.db = null;
+    $("appView").hidden = true; $("authView").hidden = false;
+    try { const s = await (await fetch("/api/setup")).json(); $("setupForm").hidden = !s.needsSetup; $("loginForm").hidden = !!s.needsSetup; }
+    catch { $("setupForm").hidden = true; $("loginForm").hidden = false; }
+  }
+  async function enterApp() {
+    await load();
+    $("authView").hidden = true; $("appView").hidden = false;
+    setTab(state.tab);
+  }
+  $("loginForm").addEventListener("submit", async e => {
+    e.preventDefault(); showErr("loginErr", "");
+    try { await api("POST", "login", { email: $("loginEmail").value, password: $("loginPassword").value }); $("loginPassword").value = ""; await enterApp(); }
+    catch (err) { showErr("loginErr", err.message); }
+  });
+  $("setupForm").addEventListener("submit", async e => {
+    e.preventDefault(); showErr("setupErr", "");
+    try { await api("POST", "setup", { name: $("setupName").value, email: $("setupEmail").value, password: $("setupPassword").value }); await enterApp(); setTab("members"); }
+    catch (err) { showErr("setupErr", err.message); }
+  });
+  $("btnLogout").addEventListener("click", async () => { try { await api("POST", "logout"); } catch {} showAuth(); });
+
+  // ---------- boot ----------
+  try { const t = localStorage.getItem("mom-tab"); if (TABS.includes(t)) state.tab = t; } catch {}
+  // keep in step with teammates' changes while the page is open
+  const quiet = () => state.me && document.visibilityState === "visible" && !document.querySelector("dialog[open]") && !document.querySelector("details.tagpick[open]");
+  setInterval(() => { if (quiet()) load().catch(() => {}); }, 30000);
+  document.addEventListener("visibilitychange", () => { if (quiet()) load().catch(() => {}); });
+  enterApp().catch(() => showAuth());
+})();
+</script>
+</body>
+</html>
