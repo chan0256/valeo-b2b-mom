@@ -38,6 +38,7 @@ function checkPassword(pw) {
   return pw;
 }
 const str = (v, max = 5000) => (typeof v === "string" ? v.trim().slice(0, max) : "");
+const addDaysISO = (s, n) => { const d = new Date(s + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dubai", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 
 function readCookie(req, name) {
@@ -80,6 +81,10 @@ async function migrate(env) {
     duration INTEGER NOT NULL DEFAULT 60, location TEXT NOT NULL DEFAULT '', sort INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL)`).run();
   try { await env.DB.prepare("ALTER TABLE meetings ADD COLUMN series_id TEXT").run(); }
   catch (e) { if (!/duplicate column/i.test(String(e && e.message))) throw e; }
+  // one-off changes to a single date of a meeting type: moved (new_date/new_time) or cancelled (new_date NULL)
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS series_changes (
+    series_id TEXT NOT NULL, orig_date TEXT NOT NULL, new_date TEXT, new_time TEXT, note TEXT NOT NULL DEFAULT '',
+    updated_by TEXT, updated_at INTEGER NOT NULL, PRIMARY KEY (series_id, orig_date))`).run();
   if (!(await env.DB.prepare("SELECT 1 FROM series LIMIT 1").first())) {
     const s = (await env.DB.prepare("SELECT weekday, time, duration, title, location FROM settings WHERE id = 1").first())
       || { weekday: 1, time: "10:00", duration: 60, title: "UAE B2B Weekly Meeting", location: "" };
@@ -103,17 +108,20 @@ function seriesFields(body) {
 
 // ---------- route handlers ----------
 async function getState(env) {
-  const [series, users, meetings, items, links] = await env.DB.batch([
+  const [series, users, meetings, items, links, changes] = await env.DB.batch([
     env.DB.prepare("SELECT id, title, weekday, time, duration, location FROM series ORDER BY sort, created_at"),
     env.DB.prepare("SELECT id, name, email, title, role, active FROM users ORDER BY name COLLATE NOCASE"),
     env.DB.prepare("SELECT id, series_id AS seriesId, date, title, attendees, notes, created_at AS createdAt FROM meetings ORDER BY date DESC"),
     env.DB.prepare("SELECT * FROM items ORDER BY created_at"),
     env.DB.prepare("SELECT item_id, user_id FROM item_assignees"),
+    env.DB.prepare("SELECT series_id AS seriesId, orig_date AS origDate, new_date AS newDate, new_time AS newTime, note FROM series_changes WHERE orig_date >= ? OR new_date >= ?")
+      .bind(addDaysISO(today(), -90), addDaysISO(today(), -90)),
   ]);
   const byItem = {};
   for (const l of links.results) (byItem[l.item_id] ||= []).push(l.user_id);
   return {
     series: series.results,
+    changes: changes.results,
     users: users.results.map(publicUser),
     meetings: meetings.results,
     items: items.results.map(i => publicItem(i, byItem[i.id])),
@@ -207,6 +215,7 @@ async function route(req, env, path, method) {
       // Recorded minutes stay; they just lose their link to the removed type
       await env.DB.batch([
         env.DB.prepare("UPDATE meetings SET series_id = NULL WHERE series_id = ?").bind(id),
+        env.DB.prepare("DELETE FROM series_changes WHERE series_id = ?").bind(id),
         env.DB.prepare("DELETE FROM series WHERE id = ?").bind(id),
       ]);
       return json({ ok: true });
@@ -254,6 +263,28 @@ async function route(req, env, path, method) {
       ]);
       return json({ ok: true });
     }
+  }
+
+  // --- reschedule or cancel one date of a meeting type
+  if (path === "reschedule" && method === "PUT") {
+    admin();
+    const seriesId = str(body.seriesId, 60), origDate = str(body.origDate, 10);
+    const sr = await env.DB.prepare("SELECT weekday FROM series WHERE id = ?").bind(seriesId).first();
+    if (!sr) fail(400, "That meeting type no longer exists.");
+    if (!DATE_RE.test(origDate) || new Date(origDate + "T00:00:00Z").getUTCDay() !== sr.weekday) fail(400, "Pick one of the meeting's usual dates.");
+    if (body.restore) {
+      await env.DB.prepare("DELETE FROM series_changes WHERE series_id = ? AND orig_date = ?").bind(seriesId, origDate).run();
+      return json({ ok: true });
+    }
+    let newDate = null, newTime = null;
+    if (!body.cancel) {
+      newDate = str(body.newDate, 10); newTime = str(body.newTime, 5);
+      if (!DATE_RE.test(newDate) || !TIME_RE.test(newTime)) fail(400, "Pick the new date and time.");
+    }
+    await env.DB.prepare(`INSERT INTO series_changes (series_id, orig_date, new_date, new_time, note, updated_by, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT (series_id, orig_date) DO UPDATE SET new_date = excluded.new_date, new_time = excluded.new_time, note = excluded.note, updated_by = excluded.updated_by, updated_at = excluded.updated_at`)
+      .bind(seriesId, origDate, newDate, newTime, str(body.note, 500), me.id, Date.now()).run();
+    return json({ ok: true });
   }
 
   // --- meetings

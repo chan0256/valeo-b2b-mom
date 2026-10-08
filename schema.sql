@@ -68,3 +68,14 @@ CREATE TABLE IF NOT EXISTS series (
   sort INTEGER NOT NULL DEFAULT 0,
   created_at INTEGER NOT NULL
 );
+-- One-off changes to a single date of a meeting type (moved, or cancelled when new_date is NULL).
+CREATE TABLE IF NOT EXISTS series_changes (
+  series_id TEXT NOT NULL,
+  orig_date TEXT NOT NULL,
+  new_date TEXT,
+  new_time TEXT,
+  note TEXT NOT NULL DEFAULT '',
+  updated_by TEXT,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (series_id, orig_date)
+);
